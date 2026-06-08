@@ -1021,8 +1021,9 @@ function render() {
   const total = state.arrows.length;
   const cleared = state.arrows.filter((arrow) => arrow.removed).length;
   const dotStep = `${100 / state.size}%`;
+  const edgePadding = 1.35;
   const svg = makeSvgElement("svg", {
-    viewBox: `0 0 ${state.size} ${state.size}`,
+    viewBox: `${-edgePadding} ${-edgePadding} ${state.size + edgePadding * 2} ${state.size + edgePadding * 2}`,
     class: "board-svg",
     role: "img",
     "aria-label": `Level ${state.level} arrow puzzle`
