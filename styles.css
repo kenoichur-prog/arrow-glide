@@ -150,14 +150,14 @@ button:disabled {
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 0.34;
+  stroke-width: 0.3;
   pointer-events: stroke;
 }
 
 .arrow-head {
   stroke: var(--panel);
   stroke-linejoin: round;
-  stroke-width: 0.12;
+  stroke-width: 0.18;
   paint-order: stroke fill;
   shape-rendering: geometricPrecision;
   pointer-events: visiblePainted;
@@ -168,7 +168,7 @@ button:disabled {
 }
 
 .arrow-piece.blocked .arrow-line {
-  stroke-width: 0.42;
+  stroke-width: 0.38;
 }
 
 .arrow-piece.exiting {

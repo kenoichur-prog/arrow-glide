@@ -125,7 +125,7 @@ function bodyPathToD(path) {
 
   const tip = points[points.length - 1];
   const before = points[points.length - 2];
-  points[points.length - 1] = pointToward(tip, before, 0.54);
+  points[points.length - 1] = pointToward(tip, before, 0.72);
   return pointsToD(points);
 }
 
@@ -141,8 +141,8 @@ function arrowHeadToD(path) {
   const uy = dy / length;
   const px = -uy;
   const py = ux;
-  const headLength = 0.96;
-  const headWidth = 0.76;
+  const headLength = 1.28;
+  const headWidth = 1.08;
   const base = {
     x: tip.x - ux * headLength,
     y: tip.y - uy * headLength
