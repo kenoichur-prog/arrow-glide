@@ -1100,6 +1100,10 @@ boardFrameEl.addEventListener("wheel", (event) => {
   zoomAt(event.clientX, event.clientY, state.view.scale * factor);
 }, { passive: false });
 
+["gesturestart", "gesturechange", "gestureend"].forEach((eventName) => {
+  document.addEventListener(eventName, (event) => event.preventDefault(), { passive: false });
+});
+
 boardFrameEl.addEventListener("pointerdown", (event) => {
   if (event.button !== undefined && event.button !== 0) return;
   state.view.pointers.set(event.pointerId, {
