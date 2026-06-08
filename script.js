@@ -25,6 +25,7 @@ const state = {
   arrows: [],
   history: [],
   isAnimating: false,
+  activeAnimations: 0,
   completed: false,
   view: {
     scale: 1,
@@ -315,6 +316,8 @@ function makeArrow(levelNumber, path, index) {
     color: COLORS[(index + levelNumber) % COLORS.length],
     removed: false,
     blocked: false,
+    exiting: false,
+    animating: false,
     groupEl: null,
     lineEl: null,
     headEl: null
@@ -648,19 +651,20 @@ function loadLevel(levelNumber) {
   state.arrows = level.arrows;
   state.history = [];
   state.isAnimating = false;
+  state.activeAnimations = 0;
   state.completed = false;
   resetView();
   render();
 }
 
 function activeArrows() {
-  return state.arrows.filter((arrow) => !arrow.removed);
+  return state.arrows.filter((arrow) => !arrow.removed && !arrow.exiting);
 }
 
 function getOccupied(exceptId = "") {
   const occupied = new Set();
   state.arrows.forEach((arrow) => {
-    if (arrow.removed || arrow.id === exceptId) return;
+    if (arrow.removed || arrow.exiting || arrow.id === exceptId) return;
     arrow.path.forEach((cell) => occupied.add(keyOf(cell.row, cell.col)));
   });
   return occupied;
@@ -714,9 +718,41 @@ function recordHistory() {
       groupEl: null,
       lineEl: null,
       headEl: null,
-      blocked: false
+      blocked: false,
+      exiting: false,
+      animating: false
     }))
   });
+}
+
+function updateHud() {
+  const total = state.arrows.length;
+  const cleared = state.arrows.filter((arrow) => arrow.removed || arrow.exiting).length;
+  levelLabelEl.textContent = `LEVEL ${state.level}`;
+  clearedTextEl.textContent = `${cleared}/${total}`;
+  statusOverlayEl.hidden = !state.completed;
+  prevLevelBtn.disabled = state.level <= 1 || state.isAnimating;
+  nextLevelBtn.disabled = state.isAnimating;
+  undoBtn.disabled = !state.history.length || state.isAnimating;
+}
+
+function beginArrowAnimation(arrow) {
+  if (arrow.animating || arrow.removed) return false;
+  arrow.animating = true;
+  state.activeAnimations += 1;
+  state.isAnimating = state.activeAnimations > 0;
+  updateHud();
+  return true;
+}
+
+function finishArrowAnimation(arrow) {
+  if (arrow.animating) {
+    arrow.animating = false;
+    state.activeAnimations = Math.max(0, state.activeAnimations - 1);
+  }
+  state.isAnimating = state.activeAnimations > 0;
+  state.completed = activeArrows().length === 0 && state.activeAnimations === 0;
+  updateHud();
 }
 
 function nextFrame(callback) {
@@ -782,9 +818,9 @@ function sampleSnakePath(route, offset, count) {
 
 function onArrowTap(id) {
   if (performance.now() < state.view.suppressClickUntil) return;
-  if (state.isAnimating || state.completed) return;
+  if (state.completed) return;
   const arrow = state.arrows.find((item) => item.id === id);
-  if (!arrow || arrow.removed) return;
+  if (!arrow || arrow.removed || arrow.exiting || arrow.animating) return;
 
   if (!canEscape(arrow)) {
     bounceBlockedArrow(arrow);
@@ -796,12 +832,12 @@ function onArrowTap(id) {
 }
 
 function bounceBlockedArrow(arrow) {
+  if (!beginArrowAnimation(arrow)) return;
   const vector = DIRECTIONS[arrow.dir];
   const distance = blockingDistance(arrow);
   const originalPath = arrow.path.map((cell) => ({ ...cell }));
   const steps = Math.max(1, distance);
   const pathStack = [originalPath];
-  state.isAnimating = true;
   arrow.blocked = true;
   updateArrowClass(arrow);
 
@@ -830,8 +866,8 @@ function crawlBlockedBack(arrow, pathStack) {
     arrow.path = pathStack[0].map((cell) => ({ ...cell }));
     updateArrowPath(arrow);
     arrow.blocked = false;
-    state.isAnimating = false;
     updateArrowClass(arrow);
+    finishArrowAnimation(arrow);
     return;
   }
 
@@ -844,22 +880,23 @@ function crawlBlockedBack(arrow, pathStack) {
 }
 
 function slideArrowOut(arrow) {
+  if (!arrow.exiting && !beginArrowAnimation(arrow)) return;
   const vector = DIRECTIONS[arrow.dir];
   const fromPath = arrow.path.map((cell) => ({ ...cell }));
   const tip = fromPath[fromPath.length - 1];
   const nextHead = { row: tip.row + vector.dr, col: tip.col + vector.dc };
   const toPath = fromPath.slice(1).concat(nextHead);
-  state.isAnimating = true;
-  if (arrow.groupEl) arrow.groupEl.classList.add("exiting");
+  arrow.exiting = true;
+  updateArrowClass(arrow);
+  updateHud();
 
   animatePathBetween(arrow, fromPath, toPath, 58, () => {
     arrow.path = toPath;
     const stillVisible = arrow.path.some((cell) => isInside(cell.row, cell.col, state.size));
     if (!stillVisible) {
       arrow.removed = true;
-      state.isAnimating = false;
-      state.completed = activeArrows().length === 0;
-      render();
+      if (arrow.groupEl) arrow.groupEl.remove();
+      finishArrowAnimation(arrow);
       return;
     }
 
@@ -971,7 +1008,7 @@ function pointerCenter(first, second) {
 }
 
 function arrowClassName(arrow) {
-  return ["arrow-piece", arrow.blocked ? "blocked" : ""].filter(Boolean).join(" ");
+  return ["arrow-piece", arrow.blocked ? "blocked" : "", arrow.exiting ? "exiting" : ""].filter(Boolean).join(" ");
 }
 
 function updateArrowClass(arrow) {
@@ -1035,12 +1072,7 @@ function render() {
   boardFrameEl.style.setProperty("--dot-step", dotStep);
   boardEl.replaceChildren(svg);
   applyBoardTransform();
-  levelLabelEl.textContent = `LEVEL ${state.level}`;
-  clearedTextEl.textContent = `${cleared}/${total}`;
-  statusOverlayEl.hidden = !state.completed;
-  prevLevelBtn.disabled = state.level <= 1 || state.isAnimating;
-  nextLevelBtn.disabled = state.isAnimating;
-  undoBtn.disabled = !state.history.length || state.isAnimating;
+  updateHud();
 }
 
 prevLevelBtn.addEventListener("click", () => loadLevel(Math.max(1, state.level - 1)));
