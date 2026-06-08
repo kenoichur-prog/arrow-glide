@@ -16,6 +16,7 @@ const levelLabelEl = document.querySelector("#levelLabel");
 const clearedTextEl = document.querySelector("#clearedText");
 const prevLevelBtn = document.querySelector("#prevLevel");
 const nextLevelBtn = document.querySelector("#nextLevel");
+const topNextLevelBtn = document.querySelector("#topNextLevel");
 const resetBtn = document.querySelector("#resetBtn");
 const undoBtn = document.querySelector("#undoBtn");
 
@@ -26,6 +27,7 @@ const state = {
   history: [],
   isAnimating: false,
   activeAnimations: 0,
+  runId: 0,
   completed: false,
   view: {
     scale: 1,
@@ -318,6 +320,7 @@ function makeArrow(levelNumber, path, index) {
     blocked: false,
     exiting: false,
     animating: false,
+    runId: 0,
     groupEl: null,
     lineEl: null,
     headEl: null
@@ -646,6 +649,7 @@ function generateLevel(levelNumber) {
 
 function loadLevel(levelNumber) {
   const level = generateLevel(levelNumber);
+  state.runId += 1;
   state.level = levelNumber;
   state.size = level.size;
   state.arrows = level.arrows;
@@ -720,7 +724,8 @@ function recordHistory() {
       headEl: null,
       blocked: false,
       exiting: false,
-      animating: false
+      animating: false,
+      runId: state.runId
     }))
   });
 }
@@ -731,14 +736,16 @@ function updateHud() {
   levelLabelEl.textContent = `LEVEL ${state.level}`;
   clearedTextEl.textContent = `${cleared}/${total}`;
   statusOverlayEl.hidden = !state.completed;
-  prevLevelBtn.disabled = state.level <= 1 || state.isAnimating;
-  nextLevelBtn.disabled = state.isAnimating;
+  prevLevelBtn.disabled = state.level <= 1;
+  nextLevelBtn.disabled = false;
+  topNextLevelBtn.disabled = false;
   undoBtn.disabled = !state.history.length || state.isAnimating;
 }
 
 function beginArrowAnimation(arrow) {
   if (arrow.animating || arrow.removed) return false;
   arrow.animating = true;
+  arrow.runId = state.runId;
   state.activeAnimations += 1;
   state.isAnimating = state.activeAnimations > 0;
   updateHud();
@@ -746,6 +753,7 @@ function beginArrowAnimation(arrow) {
 }
 
 function finishArrowAnimation(arrow) {
+  if (arrow.runId !== state.runId) return;
   if (arrow.animating) {
     arrow.animating = false;
     state.activeAnimations = Math.max(0, state.activeAnimations - 1);
@@ -845,6 +853,7 @@ function bounceBlockedArrow(arrow) {
 }
 
 function crawlBlockedForward(arrow, vector, maxSteps, completedSteps, pathStack) {
+  if (arrow.runId !== state.runId) return;
   if (completedSteps >= maxSteps) {
     window.setTimeout(() => crawlBlockedBack(arrow, pathStack), 70);
     return;
@@ -862,6 +871,7 @@ function crawlBlockedForward(arrow, vector, maxSteps, completedSteps, pathStack)
 }
 
 function crawlBlockedBack(arrow, pathStack) {
+  if (arrow.runId !== state.runId) return;
   if (pathStack.length <= 1) {
     arrow.path = pathStack[0].map((cell) => ({ ...cell }));
     updateArrowPath(arrow);
@@ -880,6 +890,7 @@ function crawlBlockedBack(arrow, pathStack) {
 }
 
 function slideArrowOut(arrow) {
+  if (arrow.runId && arrow.runId !== state.runId) return;
   if (!arrow.exiting && !beginArrowAnimation(arrow)) return;
   const vector = DIRECTIONS[arrow.dir];
   const fromPath = arrow.path.map((cell) => ({ ...cell }));
@@ -906,6 +917,7 @@ function slideArrowOut(arrow) {
 
 function animatePathBetween(arrow, fromPath, toPath, duration, onDone) {
   const startedAt = performance.now();
+  const runId = arrow.runId;
   const forward = isForwardStep(fromPath, toPath);
   const backward = isBackwardStep(fromPath, toPath);
   const route = forward
@@ -913,6 +925,7 @@ function animatePathBetween(arrow, fromPath, toPath, duration, onDone) {
     : toPath.concat(fromPath[fromPath.length - 1]);
 
   function step(now) {
+    if (runId !== state.runId) return;
     const progress = Math.min(1, (now - startedAt) / duration);
     const eased = easeInOut(progress);
     if (forward) {
@@ -1077,6 +1090,7 @@ function render() {
 
 prevLevelBtn.addEventListener("click", () => loadLevel(Math.max(1, state.level - 1)));
 nextLevelBtn.addEventListener("click", () => loadLevel(state.level + 1));
+topNextLevelBtn.addEventListener("click", () => loadLevel(state.level + 1));
 resetBtn.addEventListener("click", () => loadLevel(state.level));
 undoBtn.addEventListener("click", undo);
 
