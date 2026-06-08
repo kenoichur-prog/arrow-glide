@@ -138,7 +138,10 @@ button:disabled {
 }
 
 .arrow-head {
-  stroke: none;
+  stroke: var(--panel);
+  stroke-linejoin: round;
+  stroke-width: 0.12;
+  paint-order: stroke fill;
   shape-rendering: geometricPrecision;
   pointer-events: visiblePainted;
 }
