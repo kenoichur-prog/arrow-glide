@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Arrow Glide</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="game" aria-label="Arrow Glide game">
+        <header class="topbar">
+          <button class="icon-button" id="prevLevel" type="button" title="Previous level" aria-label="Previous level">
+            <span aria-hidden="true">&#8592;</span>
+          </button>
+          <div class="level-pill" id="levelLabel">LEVEL 1</div>
+          <button class="icon-button" id="resetBtn" type="button" title="Reset" aria-label="Reset">
+            <span aria-hidden="true">&#10073;&#10073;</span>
+          </button>
+        </header>
+
+        <section class="board-frame" aria-label="Puzzle board">
+          <div id="board" class="board"></div>
+          <div id="statusOverlay" class="status-overlay" hidden>
+            <strong id="statusTitle">Clear</strong>
+            <span id="statusText">Nice sequence.</span>
+          </div>
+        </section>
+
+        <footer class="footer-controls">
+          <button id="undoBtn" type="button">Undo</button>
+          <div class="counter"><span id="clearedText">0/0</span></div>
+          <button id="nextLevel" type="button">Next</button>
+        </footer>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
