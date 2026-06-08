@@ -1104,6 +1104,20 @@ boardFrameEl.addEventListener("wheel", (event) => {
   document.addEventListener(eventName, (event) => event.preventDefault(), { passive: false });
 });
 
+let lastTouchEndAt = 0;
+
+document.addEventListener("touchend", (event) => {
+  const now = Date.now();
+  if (now - lastTouchEndAt < 450) {
+    event.preventDefault();
+  }
+  lastTouchEndAt = now;
+}, { passive: false, capture: true });
+
+document.addEventListener("dblclick", (event) => {
+  event.preventDefault();
+}, { passive: false, capture: true });
+
 boardFrameEl.addEventListener("pointerdown", (event) => {
   if (event.button !== undefined && event.button !== 0) return;
   state.view.pointers.set(event.pointerId, {
