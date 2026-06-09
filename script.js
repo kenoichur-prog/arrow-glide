@@ -554,8 +554,8 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
   const { cells: allowedCells, allowed } = shapeCells(size, shape);
   const occupied = new Set();
   const arrows = [];
-  const desiredFill = Math.floor(allowedCells.length * 0.94 * densityScale);
-  const maxTracks = Math.floor((260 + levelNumber * 0.55) * densityScale);
+  const desiredFill = Math.floor(allowedCells.length * 0.9 * densityScale);
+  const maxTracks = Math.floor((235 + levelNumber * 0.55) * densityScale);
   let attempts = 0;
 
   function reservePath(path) {
@@ -582,8 +582,9 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
           for (let segmentCol = cursor; segmentCol < cursor + length; segmentCol += 1) {
             path.push({ row, col: segmentCol });
           }
-          const oriented = (cursor + length / 2 < size / 2) ? path.reverse() : path;
-          reservePath(oriented);
+          const preferred = (cursor + length / 2 < size / 2) ? path.reverse() : path;
+          const oriented = orientPathForPlacement(preferred, occupied, size);
+          if (oriented) reservePath(oriented);
           cursor += length;
         }
       }
@@ -607,8 +608,9 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
           for (let segmentRow = cursor; segmentRow < cursor + length; segmentRow += 1) {
             path.push({ row: segmentRow, col });
           }
-          const oriented = (cursor + length / 2 < size / 2) ? path.reverse() : path;
-          reservePath(oriented);
+          const preferred = (cursor + length / 2 < size / 2) ? path.reverse() : path;
+          const oriented = orientPathForPlacement(preferred, occupied, size);
+          if (oriented) reservePath(oriented);
           cursor += length;
         }
       }
@@ -632,19 +634,35 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
     const path = motifPath || growPath(start.row, start.col, size, occupied, rng, allowed, lengthRange, 0.68);
     if (path.length < lengthRange.min || !canPlacePath(path, occupied, size, allowed)) continue;
 
-    const oriented = orientPathForPlacement(path, occupied, size)
-      || orientPathForEscape(path, occupied, size);
+    const oriented = orientPathForPlacement(path, occupied, size);
+    if (!oriented) continue;
     reservePath(oriented);
   }
 
   fillRemainingGaps();
 
-  return { size, arrows, targetCount: maxTracks, fillTarget: desiredFill, precheckedSolvable: true };
+  return { size, arrows, targetCount: maxTracks, fillTarget: desiredFill, precheckedSolvable: isSolvable(arrows, size) };
 }
 
 function generateLevel(levelNumber) {
-  const layout = buildLevelLayout(levelNumber, 0, 1);
-  return { size: layout.size, arrows: layout.arrows };
+  const densityScale = Math.min(1, 0.62 + levelNumber * 0.012);
+  let bestLayout = null;
+
+  for (let salt = 0; salt < 10; salt += 1) {
+    const layout = buildLevelLayout(levelNumber, salt, densityScale);
+    if (!bestLayout || layout.arrows.length > bestLayout.arrows.length) bestLayout = layout;
+    if (layout.precheckedSolvable && layout.arrows.length >= Math.floor(layout.targetCount * 0.72)) {
+      return { size: layout.size, arrows: layout.arrows };
+    }
+  }
+
+  if (bestLayout && orientArrowsForSolvability(bestLayout.arrows, bestLayout.size) && isSolvable(bestLayout.arrows, bestLayout.size)) {
+    return { size: bestLayout.size, arrows: bestLayout.arrows };
+  }
+
+  const fallback = buildLevelLayout(levelNumber, 999, Math.max(0.48, densityScale * 0.75));
+  orientArrowsForSolvability(fallback.arrows, fallback.size);
+  return { size: fallback.size, arrows: fallback.arrows };
 }
 
 function loadLevel(levelNumber) {
