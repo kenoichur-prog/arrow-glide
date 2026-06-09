@@ -258,7 +258,7 @@ function buildMotifPath(row, col, size, occupied, rng, allowed) {
   const path = [{ row, col }];
   const local = new Set([keyOf(row, col)]);
   const motif = rng();
-  const axis = rng() < 0.72 ? "horizontal" : "vertical";
+  const axis = rng() < 0.52 ? "horizontal" : "vertical";
   const mainDir = vectorNamesForAxis(axis)[Math.floor(rng() * 2)];
   const sideDir = turnNamesForAxis(axis)[Math.floor(rng() * 2)];
   const reverseMain = mainDir === "left" ? "right" : mainDir === "right" ? "left" : mainDir === "up" ? "down" : "up";
@@ -550,7 +550,7 @@ function isSolvable(arrows, size) {
 
 function buildLevelLayout(levelNumber, salt, densityScale = 1) {
   const rng = createRng(9209 + levelNumber * 149 + salt * 7919);
-  const size = Math.min(56, 46 + Math.floor(levelNumber / 16));
+  const size = Math.min(58, 54 + Math.floor(levelNumber / 24));
   const shape = SHAPES[(levelNumber - 1) % SHAPES.length];
   const { cells: allowedCells, allowed } = shapeCells(size, shape);
   const occupied = new Set();
@@ -565,54 +565,25 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
   }
 
   function fillRemainingGaps() {
-    for (let row = 0; row < size && occupied.size < desiredFill && arrows.length < maxTracks; row += 1) {
-      let col = 0;
-      while (col < size && occupied.size < desiredFill && arrows.length < maxTracks) {
-        while (col < size && (!allowed.has(keyOf(row, col)) || occupied.has(keyOf(row, col)))) col += 1;
-        const startCol = col;
-        while (col < size && allowed.has(keyOf(row, col)) && !occupied.has(keyOf(row, col))) col += 1;
-        const runLength = col - startCol;
-        if (runLength < 2) continue;
+    let gapAttempts = 0;
+    const maxGapAttempts = Math.max(14000, maxTracks * 90);
 
-        let cursor = startCol;
-        while (cursor < startCol + runLength && occupied.size < desiredFill && arrows.length < maxTracks) {
-          const remaining = startCol + runLength - cursor;
-          const length = Math.min(remaining, 2 + Math.floor(rng() * Math.min(4, remaining)));
-          if (length < 2) break;
-          const path = [];
-          for (let segmentCol = cursor; segmentCol < cursor + length; segmentCol += 1) {
-            path.push({ row, col: segmentCol });
-          }
-          const oriented = (cursor + length / 2 < size / 2) ? path.reverse() : path;
-          reservePath(oriented);
-          cursor += length;
-        }
-      }
-    }
+    while (occupied.size < desiredFill && arrows.length < maxTracks && gapAttempts < maxGapAttempts) {
+      gapAttempts += 1;
+      const start = allowedCells[Math.floor(rng() * allowedCells.length)];
+      if (!start || occupied.has(keyOf(start.row, start.col))) continue;
 
-    for (let col = 0; col < size && occupied.size < desiredFill && arrows.length < maxTracks; col += 1) {
-      let row = 0;
-      while (row < size && occupied.size < desiredFill && arrows.length < maxTracks) {
-        while (row < size && (!allowed.has(keyOf(row, col)) || occupied.has(keyOf(row, col)))) row += 1;
-        const startRow = row;
-        while (row < size && allowed.has(keyOf(row, col)) && !occupied.has(keyOf(row, col))) row += 1;
-        const runLength = row - startRow;
-        if (runLength < 2) continue;
+      const lengthRange = rng() < 0.62
+        ? { min: 3, max: 6 }
+        : { min: 4, max: 8 };
+      const path = rng() < 0.55
+        ? buildMotifPath(start.row, start.col, size, occupied, rng, allowed)
+        : growPath(start.row, start.col, size, occupied, rng, allowed, lengthRange, 0.88);
+      if (!path || path.length < 3 || !canPlacePath(path, occupied, size, allowed)) continue;
 
-        let cursor = startRow;
-        while (cursor < startRow + runLength && occupied.size < desiredFill && arrows.length < maxTracks) {
-          const remaining = startRow + runLength - cursor;
-          const length = Math.min(remaining, 2 + Math.floor(rng() * Math.min(4, remaining)));
-          if (length < 2) break;
-          const path = [];
-          for (let segmentRow = cursor; segmentRow < cursor + length; segmentRow += 1) {
-            path.push({ row: segmentRow, col });
-          }
-          const oriented = (cursor + length / 2 < size / 2) ? path.reverse() : path;
-          reservePath(oriented);
-          cursor += length;
-        }
-      }
+      const oriented = orientPathForPlacement(path, occupied, size);
+      if (!oriented) continue;
+      reservePath(oriented);
     }
   }
 
@@ -621,16 +592,16 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
     const start = allowedCells[Math.floor(rng() * allowedCells.length)];
     if (!start || occupied.has(keyOf(start.row, start.col))) continue;
 
-    const longTrackQuota = Math.floor(maxTracks * 0.28);
+    const longTrackQuota = Math.floor(maxTracks * 0.08);
     const lengthRange = arrows.length < longTrackQuota
-      ? { min: 7, max: 13 }
-      : rng() < 0.55
-        ? { min: 5, max: 9 }
+      ? { min: 5, max: 9 }
+      : rng() < 0.62
+        ? { min: 3, max: 6 }
         : { min: 4, max: 7 };
-    const motifPath = rng() < 0.94
+    const motifPath = rng() < 0.75
       ? buildMotifPath(start.row, start.col, size, occupied, rng, allowed)
       : null;
-    const path = motifPath || growPath(start.row, start.col, size, occupied, rng, allowed, lengthRange, 0.68);
+    const path = motifPath || growPath(start.row, start.col, size, occupied, rng, allowed, lengthRange, 0.84);
     if (path.length < lengthRange.min || !canPlacePath(path, occupied, size, allowed)) continue;
 
     const oriented = orientPathForPlacement(path, occupied, size);
@@ -650,7 +621,7 @@ function generateLevel(levelNumber) {
   for (let salt = 0; salt < 10; salt += 1) {
     const layout = buildLevelLayout(levelNumber, salt, densityScale);
     if (!bestLayout || layout.arrows.length > bestLayout.arrows.length) bestLayout = layout;
-    if (layout.precheckedSolvable && layout.arrows.length >= Math.floor(layout.targetCount * 0.68)) {
+    if (layout.precheckedSolvable && layout.arrows.length >= Math.floor(layout.targetCount * 0.6)) {
       return { size: layout.size, arrows: layout.arrows };
     }
   }
