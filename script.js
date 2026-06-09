@@ -322,6 +322,7 @@ function makeArrow(levelNumber, path, index) {
     animating: false,
     runId: 0,
     groupEl: null,
+    hitEl: null,
     lineEl: null,
     headEl: null
   };
@@ -554,8 +555,8 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
   const { cells: allowedCells, allowed } = shapeCells(size, shape);
   const occupied = new Set();
   const arrows = [];
-  const desiredFill = Math.floor(allowedCells.length * 0.9 * densityScale);
-  const maxTracks = Math.floor((235 + levelNumber * 0.55) * densityScale);
+  const desiredFill = Math.floor(allowedCells.length * 0.94 * densityScale);
+  const maxTracks = Math.floor((295 + levelNumber * 0.7) * densityScale);
   let attempts = 0;
 
   function reservePath(path) {
@@ -582,9 +583,8 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
           for (let segmentCol = cursor; segmentCol < cursor + length; segmentCol += 1) {
             path.push({ row, col: segmentCol });
           }
-          const preferred = (cursor + length / 2 < size / 2) ? path.reverse() : path;
-          const oriented = orientPathForPlacement(preferred, occupied, size);
-          if (oriented) reservePath(oriented);
+          const oriented = (cursor + length / 2 < size / 2) ? path.reverse() : path;
+          reservePath(oriented);
           cursor += length;
         }
       }
@@ -608,9 +608,8 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
           for (let segmentRow = cursor; segmentRow < cursor + length; segmentRow += 1) {
             path.push({ row: segmentRow, col });
           }
-          const preferred = (cursor + length / 2 < size / 2) ? path.reverse() : path;
-          const oriented = orientPathForPlacement(preferred, occupied, size);
-          if (oriented) reservePath(oriented);
+          const oriented = (cursor + length / 2 < size / 2) ? path.reverse() : path;
+          reservePath(oriented);
           cursor += length;
         }
       }
@@ -645,13 +644,13 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
 }
 
 function generateLevel(levelNumber) {
-  const densityScale = Math.min(1, 0.62 + levelNumber * 0.012);
+  const densityScale = Math.min(1, 0.78 + levelNumber * 0.008);
   let bestLayout = null;
 
   for (let salt = 0; salt < 10; salt += 1) {
     const layout = buildLevelLayout(levelNumber, salt, densityScale);
     if (!bestLayout || layout.arrows.length > bestLayout.arrows.length) bestLayout = layout;
-    if (layout.precheckedSolvable && layout.arrows.length >= Math.floor(layout.targetCount * 0.72)) {
+    if (layout.precheckedSolvable && layout.arrows.length >= Math.floor(layout.targetCount * 0.68)) {
       return { size: layout.size, arrows: layout.arrows };
     }
   }
@@ -738,6 +737,7 @@ function recordHistory() {
       ...arrow,
       path: arrow.path.map((cell) => ({ ...cell })),
       groupEl: null,
+      hitEl: null,
       lineEl: null,
       headEl: null,
       blocked: false,
@@ -975,6 +975,7 @@ function undo() {
     ...arrow,
     path: arrow.path.map((cell) => ({ ...cell })),
     groupEl: null,
+    hitEl: null,
     lineEl: null,
     headEl: null
   }));
@@ -1048,6 +1049,7 @@ function updateArrowClass(arrow) {
 
 function updateArrowPath(arrow) {
   if (!arrow.lineEl || !arrow.headEl) return;
+  if (arrow.hitEl) arrow.hitEl.setAttribute("d", bodyPathToD(arrow.path));
   arrow.lineEl.setAttribute("d", bodyPathToD(arrow.path));
   arrow.headEl.setAttribute("d", arrowHeadToD(arrow.path));
 }
@@ -1062,6 +1064,10 @@ function renderArrow(svg, arrow) {
     "data-id": arrow.id
   });
   group.style.color = arrow.color;
+  const hit = makeSvgElement("path", {
+    class: "arrow-hit",
+    d: bodyPathToD(arrow.path)
+  });
   const line = makeSvgElement("path", {
     class: "arrow-line",
     d: bodyPathToD(arrow.path),
@@ -1072,6 +1078,7 @@ function renderArrow(svg, arrow) {
     d: arrowHeadToD(arrow.path),
     fill: arrow.color
   });
+  group.appendChild(hit);
   group.appendChild(line);
   group.appendChild(head);
   group.addEventListener("pointerup", (event) => {
@@ -1080,6 +1087,7 @@ function renderArrow(svg, arrow) {
     }
   });
   arrow.groupEl = group;
+  arrow.hitEl = hit;
   arrow.lineEl = line;
   arrow.headEl = head;
   svg.appendChild(group);
@@ -1125,6 +1133,7 @@ boardFrameEl.addEventListener("wheel", (event) => {
 let lastTouchEndAt = 0;
 
 document.addEventListener("touchend", (event) => {
+  if (!event.target.closest(".board-frame")) return;
   const now = Date.now();
   if (now - lastTouchEndAt < 450) {
     event.preventDefault();

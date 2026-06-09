@@ -146,6 +146,15 @@ button:disabled {
   pointer-events: visiblePainted;
 }
 
+.arrow-hit {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.15;
+  pointer-events: stroke;
+}
+
 .arrow-line {
   fill: none;
   stroke-linecap: round;
