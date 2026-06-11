@@ -559,6 +559,23 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
   const maxTracks = Math.floor((295 + levelNumber * 0.7) * densityScale);
   let attempts = 0;
 
+  function distanceFromCenter(cell) {
+    return Math.hypot(cell.row - size / 2, cell.col - size / 2);
+  }
+
+  function chooseStartCell(centerBias = 0.5) {
+    let best = null;
+    const samples = rng() < centerBias ? 14 : 5;
+
+    for (let sample = 0; sample < samples; sample += 1) {
+      const candidate = allowedCells[Math.floor(rng() * allowedCells.length)];
+      if (!candidate || occupied.has(keyOf(candidate.row, candidate.col))) continue;
+      if (!best || distanceFromCenter(candidate) < distanceFromCenter(best)) best = candidate;
+    }
+
+    return best || allowedCells[Math.floor(rng() * allowedCells.length)];
+  }
+
   function reservePath(path) {
     cellsForPath(path).forEach((key) => occupied.add(key));
     arrows.push(makeArrow(levelNumber, path, arrows.length));
@@ -570,12 +587,12 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
 
     while (occupied.size < desiredFill && arrows.length < maxTracks && gapAttempts < maxGapAttempts) {
       gapAttempts += 1;
-      const start = allowedCells[Math.floor(rng() * allowedCells.length)];
+      const start = chooseStartCell(0.38);
       if (!start || occupied.has(keyOf(start.row, start.col))) continue;
 
-      const lengthRange = rng() < 0.62
-        ? { min: 3, max: 6 }
-        : { min: 4, max: 8 };
+      const lengthRange = rng() < 0.68
+        ? { min: 4, max: 7 }
+        : { min: 5, max: 9 };
       const path = rng() < 0.55
         ? buildMotifPath(start.row, start.col, size, occupied, rng, allowed)
         : growPath(start.row, start.col, size, occupied, rng, allowed, lengthRange, 0.88);
@@ -589,15 +606,16 @@ function buildLevelLayout(levelNumber, salt, densityScale = 1) {
 
   while (occupied.size < desiredFill && arrows.length < maxTracks && attempts < 26000) {
     attempts += 1;
-    const start = allowedCells[Math.floor(rng() * allowedCells.length)];
+    const centerBias = arrows.length < maxTracks * 0.62 ? 0.92 : 0.58;
+    const start = chooseStartCell(centerBias);
     if (!start || occupied.has(keyOf(start.row, start.col))) continue;
 
     const longTrackQuota = Math.floor(maxTracks * 0.08);
     const lengthRange = arrows.length < longTrackQuota
       ? { min: 5, max: 9 }
       : rng() < 0.62
-        ? { min: 3, max: 6 }
-        : { min: 4, max: 7 };
+        ? { min: 4, max: 7 }
+        : { min: 5, max: 8 };
     const motifPath = rng() < 0.75
       ? buildMotifPath(start.row, start.col, size, occupied, rng, allowed)
       : null;
