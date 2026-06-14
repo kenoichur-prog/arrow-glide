@@ -8,6 +8,7 @@ const DIRECTIONS = {
 const COLORS = ["#8b5cf6", "#f5b83d", "#3f83f8", "#f97316", "#22c55e", "#ec4899", "#14b8a6"];
 const SHAPES = ["maze"];
 const SVG_NS = "http://www.w3.org/2000/svg";
+const STORAGE_KEY = "arrow-glide-level";
 
 const boardEl = document.querySelector("#board");
 const boardFrameEl = document.querySelector(".board-frame");
@@ -17,7 +18,6 @@ const clearedTextEl = document.querySelector("#clearedText");
 const prevLevelBtn = document.querySelector("#prevLevel");
 const nextLevelBtn = document.querySelector("#nextLevel");
 const topNextLevelBtn = document.querySelector("#topNextLevel");
-const resetBtn = document.querySelector("#resetBtn");
 const undoBtn = document.querySelector("#undoBtn");
 
 const state = {
@@ -653,16 +653,35 @@ function generateLevel(levelNumber) {
   return { size: fallback.size, arrows: fallback.arrows };
 }
 
+function readSavedLevel() {
+  try {
+    const saved = Number(window.localStorage.getItem(STORAGE_KEY));
+    return Number.isFinite(saved) ? Math.max(1, Math.floor(saved)) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function saveLevelProgress(levelNumber) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, String(levelNumber));
+  } catch {
+    // Storage can be unavailable in private browsing; the game still works.
+  }
+}
+
 function loadLevel(levelNumber) {
-  const level = generateLevel(levelNumber);
+  const nextLevel = Math.max(1, Math.floor(Number(levelNumber) || 1));
+  const level = generateLevel(nextLevel);
   state.runId += 1;
-  state.level = levelNumber;
+  state.level = nextLevel;
   state.size = level.size;
   state.arrows = level.arrows;
   state.history = [];
   state.isAnimating = false;
   state.activeAnimations = 0;
   state.completed = false;
+  saveLevelProgress(nextLevel);
   resetView();
   render();
 }
@@ -1106,7 +1125,6 @@ function render() {
 prevLevelBtn.addEventListener("click", () => loadLevel(Math.max(1, state.level - 1)));
 nextLevelBtn.addEventListener("click", () => loadLevel(state.level + 1));
 topNextLevelBtn.addEventListener("click", () => loadLevel(state.level + 1));
-resetBtn.addEventListener("click", () => loadLevel(state.level));
 undoBtn.addEventListener("click", undo);
 
 boardFrameEl.addEventListener("wheel", (event) => {
@@ -1204,10 +1222,9 @@ boardFrameEl.addEventListener("pointercancel", releaseBoardPointer);
 
 window.addEventListener("keydown", (event) => {
   if (event.key.toLowerCase() === "z") undo();
-  if (event.key.toLowerCase() === "r") loadLevel(state.level);
   if (event.key === "0") {
     resetView();
   }
 });
 
-loadLevel(1);
+loadLevel(readSavedLevel());
