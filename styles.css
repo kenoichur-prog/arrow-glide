@@ -158,8 +158,8 @@ button:disabled {
 
 .board-frame.yarn-mode {
   background:
-    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.4), transparent 18%),
-    linear-gradient(145deg, #c8e9ff 0%, #f7d4ff 48%, #ffe9b8 100%);
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.55), transparent 17%),
+    linear-gradient(145deg, #bfe8ff 0%, #d6ccff 46%, #ffe5ba 100%);
 }
 
 .board {
@@ -224,80 +224,105 @@ button:disabled {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 1fr auto;
   gap: clamp(10px, 2vw, 18px);
   padding: clamp(14px, 3vw, 28px);
   color: #27324a;
 }
 
-.yarn-targets {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.yarn-target {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 8px 18px rgba(39, 50, 74, 0.18);
-}
-
-.yarn-tubes {
-  align-self: end;
+.wool-canvas {
+  align-self: stretch;
+  justify-self: center;
+  width: min(100%, 520px);
   display: grid;
-  grid-template-columns: repeat(var(--tube-count), minmax(0, 1fr));
-  gap: clamp(8px, 1.6vw, 15px);
-  align-items: end;
+  grid-template-columns: repeat(var(--wool-cols), 1fr);
+  grid-template-rows: repeat(var(--wool-rows), 1fr);
+  gap: 3px;
+  padding: clamp(10px, 2vw, 16px);
+  border-radius: 22px;
+  background:
+    repeating-linear-gradient(0deg, rgba(105, 126, 165, 0.08) 0 3px, transparent 3px 8px),
+    repeating-linear-gradient(90deg, rgba(105, 126, 165, 0.08) 0 3px, transparent 3px 8px),
+    rgba(255, 255, 255, 0.74);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.7),
+    0 12px 26px rgba(58, 73, 110, 0.18);
 }
 
-.yarn-tube {
+.wool-stitch {
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 7px;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.23) 0 2px, rgba(0, 0, 0, 0.1) 2px 4px),
+    var(--yarn-color);
+  box-shadow:
+    inset -2px -2px 4px rgba(0, 0, 0, 0.16),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.22);
+}
+
+.wool-stitch.empty {
+  background: rgba(255, 255, 255, 0.26);
+  box-shadow: inset 0 0 0 1px rgba(89, 105, 145, 0.08);
+}
+
+.wool-stitch.active {
+  transform: translateY(-2px);
+  outline: 2px solid rgba(255, 255, 255, 0.95);
+}
+
+.spool-tray {
+  display: grid;
+  grid-template-columns: repeat(var(--spool-count), minmax(0, 1fr));
+  gap: clamp(7px, 1.5vw, 13px);
+  align-items: center;
+}
+
+.spool {
   position: relative;
   min-width: 0;
   display: grid;
-  align-content: end;
-  gap: 4px;
-  min-height: 74%;
-  padding: 10px 6px;
-  border-radius: 20px 20px 26px 26px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.22)),
-    rgba(116, 132, 174, 0.22);
-  box-shadow:
-    inset 0 -8px 18px rgba(67, 83, 125, 0.16),
-    0 10px 20px rgba(67, 83, 125, 0.14);
-  touch-action: manipulation;
+  gap: 5px;
+  justify-items: center;
+  padding: 7px 4px 6px;
+  border: 0;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow: 0 8px 16px rgba(58, 73, 110, 0.14);
 }
 
-.yarn-tube.selected {
-  outline: 4px solid rgba(255, 255, 255, 0.92);
-  transform: translateY(-5px);
-}
-
-.yarn-ball {
-  position: relative;
-  width: min(100%, 58px);
-  aspect-ratio: 1;
-  justify-self: center;
-  border-radius: 50%;
+.spool-roll {
+  width: min(100%, 70px);
+  height: 30px;
+  border-radius: 999px;
   background:
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0 3px, rgba(0, 0, 0, 0.08) 3px 6px),
+    linear-gradient(90deg, #ffe8bd 0 12%, transparent 12% 88%, #ffe8bd 88%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 4px, rgba(0, 0, 0, 0.12) 4px 8px),
     var(--yarn-color);
-  border: 2px solid rgba(255, 255, 255, 0.58);
   box-shadow:
-    inset -5px -7px 12px rgba(0, 0, 0, 0.18),
-    inset 5px 5px 10px rgba(255, 255, 255, 0.2),
-    0 5px 8px rgba(39, 50, 74, 0.16);
+    inset 0 0 0 2px rgba(255, 255, 255, 0.5),
+    inset 0 -5px 8px rgba(0, 0, 0, 0.18);
 }
 
-.yarn-slot {
-  width: min(100%, 58px);
-  aspect-ratio: 1;
-  justify-self: center;
-  border-radius: 50%;
-  border: 2px dashed rgba(39, 50, 74, 0.16);
+.spool-count {
+  min-width: 34px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(39, 50, 74, 0.82);
+  color: white;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.spool.complete {
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.spool.empty .spool-roll {
+  background:
+    linear-gradient(90deg, #ffe8bd 0 12%, transparent 12% 88%, #ffe8bd 88%),
+    rgba(255, 255, 255, 0.34);
 }
 
 .status-overlay {

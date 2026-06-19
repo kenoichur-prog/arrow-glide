@@ -742,39 +742,59 @@ function topYarnRun(tube) {
 }
 
 function isYarnLevelComplete(yarn) {
-  return yarn.tubes.every((tube) => (
-    tube.length === 0
-    || (tube.length === yarn.capacity && tube.every((color) => color === tube[0]))
-  ));
+  return yarn.cells.every((color) => !color);
 }
 
 function buildYarnLevel(levelNumber) {
   const rng = createRng(42533 + levelNumber * 977);
-  const capacity = 4;
-  const colorCount = Math.min(7, 4 + Math.floor((levelNumber - 1) / 5));
-  const tubeCount = colorCount + 2;
+  const rows = 10;
+  const cols = 10;
+  const colorCount = Math.min(6, 3 + Math.floor((levelNumber - 1) / 6));
   const colors = YARN_COLORS.slice(0, colorCount);
-  const yarns = [];
+  const cells = Array.from({ length: rows * cols }, () => null);
+  const targets = new Map(colors.map((color) => [color, 0]));
 
-  colors.forEach((color) => {
-    for (let count = 0; count < capacity; count += 1) yarns.push(color);
+  colors.forEach((color, colorIndex) => {
+    const clusterCount = 3 + Math.floor(rng() * 3);
+    for (let cluster = 0; cluster < clusterCount; cluster += 1) {
+      let row = 1 + Math.floor(rng() * (rows - 2));
+      let col = 1 + Math.floor(rng() * (cols - 2));
+      const length = 4 + Math.floor(rng() * 6);
+      for (let step = 0; step < length; step += 1) {
+        const index = row * cols + col;
+        if (!cells[index]) {
+          cells[index] = color;
+          targets.set(color, targets.get(color) + 1);
+        }
+        const dirs = shuffle(Object.values(DIRECTIONS), rng);
+        for (const dir of dirs) {
+          const nextRow = Math.max(0, Math.min(rows - 1, row + dir.dr));
+          const nextCol = Math.max(0, Math.min(cols - 1, col + dir.dc));
+          if (!cells[nextRow * cols + nextCol] || rng() < 0.24) {
+            row = nextRow;
+            col = nextCol;
+            break;
+          }
+        }
+      }
+    }
   });
 
-  shuffle(yarns, rng).forEach((color, index) => {
-    yarns[index] = color;
-  });
-
-  const mixed = shuffle(yarns, rng);
-  const tubes = Array.from({ length: tubeCount }, () => []);
-  mixed.forEach((color, index) => {
-    tubes[index % colorCount].push(color);
+  cells.forEach((color, index) => {
+    if (color || rng() > 0.18) return;
+    const fillColor = colors[Math.floor(rng() * colors.length)];
+    cells[index] = fillColor;
+    targets.set(fillColor, targets.get(fillColor) + 1);
   });
 
   return {
-    capacity,
+    rows,
+    cols,
     colors,
-    tubes,
-    selectedTube: null
+    cells,
+    targets: Object.fromEntries(targets),
+    collected: Object.fromEntries(colors.map((color) => [color, 0])),
+    activeColor: null
   };
 }
 
@@ -804,58 +824,54 @@ function switchMode(mode) {
 
 function recordYarnHistory() {
   state.history.push({
-    tubes: cloneTubes(state.yarn.tubes),
-    selectedTube: state.yarn.selectedTube
+    cells: [...state.yarn.cells],
+    collected: { ...state.yarn.collected },
+    activeColor: state.yarn.activeColor
   });
 }
 
-function moveYarnGroup(fromIndex, toIndex) {
-  const fromTube = state.yarn.tubes[fromIndex];
-  const toTube = state.yarn.tubes[toIndex];
-  if (!fromTube.length || fromIndex === toIndex) return false;
-
-  const run = topYarnRun(fromTube);
-  const openSlots = state.yarn.capacity - toTube.length;
-  if (openSlots < run.count) return false;
-
+function collectWoolGroup(index) {
+  const color = state.yarn.cells[index];
+  if (!color) return false;
   recordYarnHistory();
-  const moving = fromTube.splice(fromTube.length - run.count, run.count);
-  state.yarn.tubes[toIndex].push(...moving);
-  state.yarn.selectedTube = null;
+  const stack = [index];
+  const visited = new Set();
+  let collected = 0;
+
+  while (stack.length) {
+    const current = stack.pop();
+    if (visited.has(current) || state.yarn.cells[current] !== color) continue;
+    visited.add(current);
+    state.yarn.cells[current] = null;
+    collected += 1;
+    const row = Math.floor(current / state.yarn.cols);
+    const col = current % state.yarn.cols;
+    Object.values(DIRECTIONS).forEach((dir) => {
+      const nextRow = row + dir.dr;
+      const nextCol = col + dir.dc;
+      if (!isInside(nextRow, nextCol, state.yarn.rows) || nextCol >= state.yarn.cols) return;
+      stack.push(nextRow * state.yarn.cols + nextCol);
+    });
+  }
+
+  state.yarn.collected[color] += collected;
+  state.yarn.activeColor = color;
   state.completed = isYarnLevelComplete(state.yarn);
   render();
   return true;
 }
 
-function onYarnTubeTap(index) {
+function onWoolCellTap(index) {
   if (state.completed || !state.yarn) return;
-  const selected = state.yarn.selectedTube;
-
-  if (selected === null) {
-    if (state.yarn.tubes[index].length) {
-      state.yarn.selectedTube = index;
-      render();
-    }
-    return;
-  }
-
-  if (selected === index) {
-    state.yarn.selectedTube = null;
-    render();
-    return;
-  }
-
-  if (!moveYarnGroup(selected, index)) {
-    state.yarn.selectedTube = state.yarn.tubes[index].length ? index : null;
-    render();
-  }
+  collectWoolGroup(index);
 }
 
 function undoYarn() {
   const snapshot = state.history.pop();
   if (!snapshot || !state.yarn) return;
-  state.yarn.tubes = cloneTubes(snapshot.tubes);
-  state.yarn.selectedTube = snapshot.selectedTube;
+  state.yarn.cells = [...snapshot.cells];
+  state.yarn.collected = { ...snapshot.collected };
+  state.yarn.activeColor = snapshot.activeColor;
   state.completed = isYarnLevelComplete(state.yarn);
   render();
 }
@@ -934,9 +950,7 @@ function updateHud() {
   const isYarn = state.mode === MODE_YARN;
   const total = isYarn ? state.yarn.colors.length : state.arrows.length;
   const cleared = isYarn
-    ? state.yarn.tubes.filter((tube) => (
-      tube.length === state.yarn.capacity && tube.every((color) => color === tube[0])
-    )).length
+    ? state.yarn.colors.filter((color) => state.yarn.collected[color] >= state.yarn.targets[color]).length
     : state.arrows.filter((arrow) => arrow.removed || arrow.exiting).length;
   levelLabelEl.textContent = `${isYarn ? "YARN" : "LEVEL"} ${state.level}`;
   clearedTextEl.textContent = `${cleared}/${total}`;
@@ -1297,43 +1311,48 @@ function renderYarn() {
   const yarnBoard = document.createElement("div");
   yarnBoard.className = "yarn-board";
 
-  const targets = document.createElement("div");
-  targets.className = "yarn-targets";
-  state.yarn.colors.forEach((color) => {
-    const target = document.createElement("div");
-    target.className = "yarn-target";
-    target.style.background = color;
-    targets.appendChild(target);
-  });
+  const canvas = document.createElement("div");
+  canvas.className = "wool-canvas";
+  canvas.style.setProperty("--wool-rows", state.yarn.rows);
+  canvas.style.setProperty("--wool-cols", state.yarn.cols);
 
-  const tubes = document.createElement("div");
-  tubes.className = "yarn-tubes";
-  tubes.style.setProperty("--tube-count", state.yarn.tubes.length);
-
-  state.yarn.tubes.forEach((tube, tubeIndex) => {
-    const tubeEl = document.createElement("button");
-    tubeEl.className = `yarn-tube${state.yarn.selectedTube === tubeIndex ? " selected" : ""}`;
-    tubeEl.type = "button";
-    tubeEl.setAttribute("aria-label", `Yarn stack ${tubeIndex + 1}`);
-    tubeEl.addEventListener("click", () => onYarnTubeTap(tubeIndex));
-
-    for (let slot = state.yarn.capacity - 1; slot >= 0; slot -= 1) {
-      const color = tube[slot];
-      const piece = document.createElement("div");
-      if (color) {
-        piece.className = "yarn-ball";
-        piece.style.setProperty("--yarn-color", color);
-      } else {
-        piece.className = "yarn-slot";
-      }
-      tubeEl.appendChild(piece);
+  state.yarn.cells.forEach((color, index) => {
+    const stitch = document.createElement("button");
+    stitch.type = "button";
+    stitch.className = `wool-stitch${color ? "" : " empty"}${color === state.yarn.activeColor ? " active" : ""}`;
+    stitch.setAttribute("aria-label", color ? "Collect yarn" : "Empty wool space");
+    if (color) {
+      stitch.style.setProperty("--yarn-color", color);
+      stitch.addEventListener("click", () => onWoolCellTap(index));
     }
-
-    tubes.appendChild(tubeEl);
+    canvas.appendChild(stitch);
   });
 
-  yarnBoard.appendChild(targets);
-  yarnBoard.appendChild(tubes);
+  const tray = document.createElement("div");
+  tray.className = "spool-tray";
+  tray.style.setProperty("--spool-count", state.yarn.colors.length);
+
+  state.yarn.colors.forEach((color) => {
+    const spool = document.createElement("div");
+    const collected = state.yarn.collected[color];
+    const target = state.yarn.targets[color] || 1;
+    spool.className = `spool${collected >= target ? " complete" : ""}${collected === 0 ? " empty" : ""}`;
+
+    const roll = document.createElement("div");
+    roll.className = "spool-roll";
+    roll.style.setProperty("--yarn-color", color);
+
+    const count = document.createElement("div");
+    count.className = "spool-count";
+    count.textContent = `${collected}/${target}`;
+
+    spool.appendChild(roll);
+    spool.appendChild(count);
+    tray.appendChild(spool);
+  });
+
+  yarnBoard.appendChild(canvas);
+  yarnBoard.appendChild(tray);
   boardEl.replaceChildren(yarnBoard);
   boardEl.style.transform = "";
   updateHud();
