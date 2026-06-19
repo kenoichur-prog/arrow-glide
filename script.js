@@ -730,102 +730,85 @@ function isYarnLevelComplete(yarn) {
   return yarn.cells.every((color) => !color);
 }
 
-function yarnShapeColor(row, col, rows, cols, colors, pattern) {
-  const x = ((col + 0.5) / cols - 0.5) * 2;
-  const y = ((row + 0.5) / rows - 0.5) * 2;
-  const band = Math.abs(Math.floor((row * 1.35 + col * 0.28) / 2)) % colors.length;
-
-  if (pattern === 0) {
-    const hx = x * 1.08;
-    const hy = -y * 1.22 + 0.2;
-    const heart = Math.pow(hx * hx + hy * hy - 0.56, 3) - hx * hx * Math.pow(hy, 3) <= 0;
-    if (!heart) return null;
-    const rim = Math.abs(hx) + Math.abs(y + 0.02) > 0.84 || hy > 0.84;
-    return colors[(rim ? band + 1 : band + 3) % colors.length];
-  }
-
-  if (pattern === 1) {
-    const leftWing = Math.pow((x + 0.38) / 0.48, 2) + Math.pow((y + 0.1) / 0.76, 2) <= 1;
-    const rightWing = Math.pow((x - 0.38) / 0.48, 2) + Math.pow((y + 0.1) / 0.76, 2) <= 1;
-    const body = Math.abs(x) < 0.1 && y > -0.72 && y < 0.72;
-    const antenna = y < -0.62 && (Math.abs(x - (y + 0.62) * 0.5) < 0.08 || Math.abs(x + (y + 0.62) * 0.5) < 0.08);
-    if (!leftWing && !rightWing && !body && !antenna) return null;
-    return colors[(body ? 1 : band + (x > 0 ? 2 : 0)) % colors.length];
-  }
-
-  if (pattern === 2) {
-    const head = x * x / 0.62 + Math.pow(y + 0.03, 2) / 0.52 <= 1;
-    const leftEar = y < -0.5 && x < -0.18 && Math.abs(x + 0.46) + Math.abs(y + 0.58) < 0.28;
-    const rightEar = y < -0.5 && x > 0.18 && Math.abs(x - 0.46) + Math.abs(y + 0.58) < 0.28;
-    const cheeks = Math.abs(x) < 0.7 && y > 0.05 && y < 0.42;
-    if (!head && !leftEar && !rightEar && !cheeks) return null;
-    return colors[(Math.floor((col + row * 0.55) / 3) + (y > 0.08 ? 2 : 0)) % colors.length];
-  }
-
-  if (pattern === 3) {
-    const distance = Math.hypot(x, y);
-    const angle = Math.atan2(y, x);
-    const petals = distance < 0.82 && distance > 0.2 && Math.cos(angle * 6) > 0.08;
-    const center = distance < 0.27;
-    const stem = Math.abs(x) < 0.1 && y > 0.08 && y < 0.9;
-    const leaf = y > 0.3 && Math.pow((x + 0.32) / 0.32, 2) + Math.pow((y - 0.46) / 0.18, 2) <= 1;
-    if (!petals && !center && !stem && !leaf) return null;
-    if (center) return colors[1 % colors.length];
-    if (stem || leaf) return colors[(colors.length - 2 + band) % colors.length];
-    return colors[(band + 3) % colors.length];
-  }
-
-  const sweater = Math.abs(x) < 0.58 && Math.abs(y) < 0.74;
-  const leftSleeve = x < -0.44 && x > -0.92 && y > -0.42 && y < 0.24;
-  const rightSleeve = x > 0.44 && x < 0.92 && y > -0.42 && y < 0.24;
-  const neck = Math.abs(x) < 0.22 && y < -0.54;
-  if ((!sweater && !leftSleeve && !rightSleeve) || neck) return null;
-  return colors[(Math.floor((row + 1) / 2) + (leftSleeve || rightSleeve ? 2 : 0)) % colors.length];
-}
-
 function buildYarnLevel(levelNumber) {
   const rng = createRng(42533 + levelNumber * 977);
-  const rows = 18;
-  const cols = 18;
   const colorCount = Math.min(7, 4 + Math.floor((levelNumber - 1) / 5));
   const colors = YARN_COLORS.slice(0, colorCount);
-  const cells = Array.from({ length: rows * cols }, () => null);
+  const pieceCount = 34 + Math.min(24, Math.floor(levelNumber / 2));
+  const cells = [];
+  const pieces = [];
   const targets = new Map(colors.map((color) => [color, 0]));
-  const pattern = (levelNumber - 1) % 5;
 
-  function setCell(row, col, color) {
-    if (row < 0 || row >= rows || col < 0 || col >= cols) return;
-    const index = row * cols + col;
-    if (cells[index] || !color) return;
-    cells[index] = color;
+  for (let index = 0; index < pieceCount; index += 1) {
+    const color = colors[Math.floor((index * 1.7 + rng() * colors.length) % colors.length)];
+    cells.push(color);
+    pieces.push(yarnPieceLayout(index, pieceCount, levelNumber));
     targets.set(color, targets.get(color) + 1);
   }
 
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) {
-      setCell(row, col, yarnShapeColor(row, col, rows, cols, colors, pattern));
-    }
-  }
-
-  colors.forEach((color, colorIndex) => {
-    const minimum = 12 + colorIndex * 2;
-    let guard = 0;
-    while (targets.get(color) < minimum && guard < 240) {
-      guard += 1;
-      const row = 2 + Math.floor(rng() * (rows - 4));
-      const col = 2 + Math.floor(rng() * (cols - 4));
-      setCell(row, col, color);
-    }
-  });
-
   return {
-    rows,
-    cols,
+    rows: 1,
+    cols: 1,
     colors,
     cells,
+    pieces,
+    hits: [],
     targets: Object.fromEntries(targets),
     collected: Object.fromEntries(colors.map((color) => [color, 0])),
     activeColor: null
+  };
+}
+
+function yarnPieceLayout(position, count, levelNumber) {
+  const motif = (levelNumber - 1) % 4;
+  const golden = position * 2.39996323;
+  const spread = Math.sqrt((position + 0.5) / Math.max(1, count));
+
+  if (motif === 0) {
+    const trunk = position > count * 0.7;
+    return {
+      x: trunk ? 450 + ((position % 5) - 2) * 24 : 450 + Math.cos(golden) * spread * 275,
+      y: trunk ? 585 + ((position - Math.floor(count * 0.7)) % 9) * 22 : 405 + Math.sin(golden) * spread * 215,
+      r: trunk ? 34 : 43 + (position % 4) * 4,
+      tilt: (position % 7 - 3) * 0.18,
+      depth: position
+    };
+  }
+
+  if (motif === 1) {
+    const petal = position % 10;
+    const angle = (petal / 10) * Math.PI * 2;
+    const ring = 145 + Math.floor(position / 10) * 26;
+    return {
+      x: 450 + Math.cos(angle) * ring,
+      y: 455 + Math.sin(angle) * ring * 0.78,
+      r: petal === 0 ? 52 : 40 + (position % 3) * 4,
+      tilt: angle,
+      depth: position
+    };
+  }
+
+  if (motif === 2) {
+    const row = Math.floor(position / 7);
+    const col = position % 7;
+    const width = Math.max(3, 7 - Math.floor(row / 2));
+    return {
+      x: 450 + (col - width / 2) * 56 + (row % 2) * 24,
+      y: 260 + row * 48,
+      r: 39 + (row % 3) * 4,
+      tilt: (col - 3) * 0.18,
+      depth: position
+    };
+  }
+
+  const row = Math.floor(position / 8);
+  const col = position % 8;
+  return {
+    x: 190 + col * 78 + Math.sin(row + col) * 18,
+    y: 245 + row * 54,
+    r: 36 + ((row + col) % 4) * 4,
+    tilt: ((row * 3 + col) % 9 - 4) * 0.16,
+    depth: position
   };
 }
 
@@ -865,27 +848,8 @@ function collectWoolGroup(index) {
   const color = state.yarn.cells[index];
   if (!color) return false;
   recordYarnHistory();
-  const stack = [index];
-  const visited = new Set();
-  let collected = 0;
-
-  while (stack.length) {
-    const current = stack.pop();
-    if (visited.has(current) || state.yarn.cells[current] !== color) continue;
-    visited.add(current);
-    state.yarn.cells[current] = null;
-    collected += 1;
-    const row = Math.floor(current / state.yarn.cols);
-    const col = current % state.yarn.cols;
-    Object.values(DIRECTIONS).forEach((dir) => {
-      const nextRow = row + dir.dr;
-      const nextCol = col + dir.dc;
-      if (!isInside(nextRow, nextCol, state.yarn.rows) || nextCol >= state.yarn.cols) return;
-      stack.push(nextRow * state.yarn.cols + nextCol);
-    });
-  }
-
-  state.yarn.collected[color] += collected;
+  state.yarn.cells[index] = null;
+  state.yarn.collected[color] += 1;
   state.yarn.activeColor = color;
   state.completed = isYarnLevelComplete(state.yarn);
   render();
@@ -1335,60 +1299,238 @@ function renderArrow(svg, arrow) {
   svg.appendChild(group);
 }
 
+function hexToRgb(hex) {
+  const clean = hex.replace("#", "");
+  const value = parseInt(clean.length === 3
+    ? clean.split("").map((char) => char + char).join("")
+    : clean, 16);
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255
+  };
+}
+
+function rgbString(rgb) {
+  return `rgb(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)})`;
+}
+
+function mixColor(hex, amount) {
+  const rgb = hexToRgb(hex);
+  const target = amount >= 0 ? 255 : 0;
+  const weight = Math.abs(amount);
+  return rgbString({
+    r: rgb.r + (target - rgb.r) * weight,
+    g: rgb.g + (target - rgb.g) * weight,
+    b: rgb.b + (target - rgb.b) * weight
+  });
+}
+
+function drawRoundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function drawYarnBox(ctx, x, y, width, height, color, collected, target) {
+  ctx.save();
+  ctx.shadowColor = "rgba(56, 67, 93, 0.25)";
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 8;
+  drawRoundRect(ctx, x, y, width, height, 18);
+  ctx.fillStyle = "rgba(247, 253, 255, 0.96)";
+  ctx.fill();
+  ctx.lineWidth = 9;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+  ctx.shadowColor = "transparent";
+
+  drawRoundRect(ctx, x + width * 0.38, y - 13, width * 0.24, 16, 5);
+  ctx.fillStyle = "#bb7437";
+  ctx.fill();
+
+  const fillRatio = collected / Math.max(1, target);
+  for (let index = 0; index < 4; index += 1) {
+    const cx = x + width * (0.35 + (index % 2) * 0.3);
+    const cy = y + height * (0.38 + Math.floor(index / 2) * 0.32);
+    const filled = fillRatio > index / 4;
+    const hole = ctx.createRadialGradient(cx - 5, cy - 6, 2, cx, cy, 17);
+    hole.addColorStop(0, "#ffffff");
+    hole.addColorStop(0.45, filled ? mixColor(color, 0.28) : "#d7e6ef");
+    hole.addColorStop(1, filled ? mixColor(color, -0.2) : "#8299a8");
+    ctx.beginPath();
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+    ctx.fillStyle = hole;
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "#526077";
+  ctx.font = "900 18px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(`${collected}/${target}`, x + width / 2, y + height + 22);
+  ctx.restore();
+}
+
+function drawPeg(ctx, x, y, radius) {
+  const gradient = ctx.createRadialGradient(x - radius * 0.35, y - radius * 0.35, 2, x, y, radius);
+  gradient.addColorStop(0, "#ffffff");
+  gradient.addColorStop(0.45, "#dceaf1");
+  gradient.addColorStop(1, "#879eac");
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  ctx.shadowColor = "rgba(76, 91, 116, 0.18)";
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 4;
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+}
+
+function drawYarnBall(ctx, piece, color, active) {
+  ctx.save();
+  ctx.translate(piece.x, piece.y);
+  ctx.rotate(piece.tilt);
+  ctx.scale(1.08, 0.9);
+
+  const r = piece.r * (active ? 1.08 : 1);
+  ctx.shadowColor = "rgba(42, 46, 72, 0.25)";
+  ctx.shadowBlur = 14;
+  ctx.shadowOffsetY = 10;
+
+  const gradient = ctx.createRadialGradient(-r * 0.35, -r * 0.38, 4, 0, 0, r);
+  gradient.addColorStop(0, mixColor(color, 0.55));
+  gradient.addColorStop(0.34, color);
+  gradient.addColorStop(1, mixColor(color, -0.32));
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+
+  ctx.lineWidth = Math.max(3, r * 0.09);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+  for (let offset = -r * 0.72; offset <= r * 0.72; offset += r * 0.34) {
+    ctx.beginPath();
+    ctx.ellipse(offset, 0, r * 0.25, r * 0.88, 0.9, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.16)";
+  ctx.lineWidth = Math.max(2, r * 0.055);
+  for (let offset = -r * 0.66; offset <= r * 0.66; offset += r * 0.38) {
+    ctx.beginPath();
+    ctx.ellipse(offset, 0, r * 0.22, r * 0.78, -0.9, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  if (active) {
+    ctx.beginPath();
+    ctx.arc(0, 0, r + 5, 0, Math.PI * 2);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawYarnScene(canvas) {
+  const ctx = canvas.getContext("2d");
+  const logicalSize = 900;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+  canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+  ctx.setTransform(canvas.width / logicalSize, 0, 0, canvas.height / logicalSize, 0, 0);
+  state.yarn.hits = [];
+
+  const bg = ctx.createLinearGradient(0, 0, logicalSize, logicalSize);
+  bg.addColorStop(0, "#bcefff");
+  bg.addColorStop(0.44, "#ffe4fa");
+  bg.addColorStop(1, "#fff1bd");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, logicalSize, logicalSize);
+
+  for (let sparkle = 0; sparkle < 18; sparkle += 1) {
+    const x = 80 + ((sparkle * 151) % 740);
+    const y = 165 + ((sparkle * 97) % 620);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.68)";
+    ctx.beginPath();
+    ctx.moveTo(x, y - 9);
+    ctx.lineTo(x + 4, y);
+    ctx.lineTo(x, y + 9);
+    ctx.lineTo(x - 4, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  const boxWidth = Math.min(116, 680 / state.yarn.colors.length);
+  const gap = 14;
+  const totalWidth = state.yarn.colors.length * boxWidth + (state.yarn.colors.length - 1) * gap;
+  let x = (logicalSize - totalWidth) / 2;
+  state.yarn.colors.forEach((color) => {
+    drawYarnBox(ctx, x, 55, boxWidth, 78, color, state.yarn.collected[color], state.yarn.targets[color] || 1);
+    x += boxWidth + gap;
+  });
+
+  for (let index = 0; index < 5; index += 1) {
+    drawPeg(ctx, 330 + index * 60, 183, 17);
+  }
+
+  ctx.save();
+  ctx.fillStyle = "rgba(80, 68, 94, 0.16)";
+  ctx.beginPath();
+  ctx.ellipse(450, 750, 260, 60, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  const visible = state.yarn.cells
+    .map((color, index) => ({ color, index, piece: state.yarn.pieces[index] }))
+    .filter((item) => item.color && item.piece)
+    .sort((a, b) => a.piece.depth - b.piece.depth);
+
+  visible.forEach((item) => {
+    drawYarnBall(ctx, item.piece, item.color, item.color === state.yarn.activeColor);
+    state.yarn.hits.push({
+      index: item.index,
+      x: item.piece.x,
+      y: item.piece.y,
+      r: item.piece.r * 1.25
+    });
+  });
+}
+
+function onYarnCanvasTap(canvas, event) {
+  if (state.completed || !state.yarn) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width) * 900;
+  const y = ((event.clientY - rect.top) / rect.height) * 900;
+  const hit = [...state.yarn.hits].reverse().find((zone) => Math.hypot(x - zone.x, y - zone.y) <= zone.r);
+  if (!hit) return;
+  collectWoolGroup(hit.index);
+}
+
 function renderYarn() {
   boardFrameEl.classList.add("yarn-mode");
   boardFrameEl.style.removeProperty("--dot-step");
 
-  const yarnBoard = document.createElement("div");
-  yarnBoard.className = "yarn-board";
-
-  const canvas = document.createElement("div");
-  canvas.className = "wool-canvas";
-  canvas.style.setProperty("--wool-rows", state.yarn.rows);
-  canvas.style.setProperty("--wool-cols", state.yarn.cols);
-
-  state.yarn.cells.forEach((color, index) => {
-    const stitch = document.createElement("button");
-    stitch.type = "button";
-    stitch.className = `wool-stitch${color ? "" : " empty"}${color === state.yarn.activeColor ? " active" : ""}`;
-    stitch.setAttribute("aria-label", color ? "Collect yarn" : "Empty wool space");
-    if (color) {
-      stitch.style.setProperty("--yarn-color", color);
-      stitch.addEventListener("pointerup", (event) => {
-        event.preventDefault();
-        onWoolCellTap(index);
-      });
-    }
-    canvas.appendChild(stitch);
+  const yarnCanvas = document.createElement("canvas");
+  yarnCanvas.className = "yarn-canvas";
+  yarnCanvas.setAttribute("aria-label", "Yarn sorting puzzle");
+  yarnCanvas.addEventListener("pointerup", (event) => {
+    event.preventDefault();
+    onYarnCanvasTap(yarnCanvas, event);
   });
 
-  const tray = document.createElement("div");
-  tray.className = "spool-tray";
-  tray.style.setProperty("--spool-count", state.yarn.colors.length);
-
-  state.yarn.colors.forEach((color) => {
-    const spool = document.createElement("div");
-    const collected = state.yarn.collected[color];
-    const target = state.yarn.targets[color] || 1;
-    spool.className = `spool${collected >= target ? " complete" : ""}${collected === 0 ? " empty" : ""}`;
-
-    const roll = document.createElement("div");
-    roll.className = "spool-roll";
-    roll.style.setProperty("--yarn-color", color);
-
-    const count = document.createElement("div");
-    count.className = "spool-count";
-    count.textContent = `${collected}/${target}`;
-
-    spool.appendChild(roll);
-    spool.appendChild(count);
-    tray.appendChild(spool);
-  });
-
-  yarnBoard.appendChild(canvas);
-  yarnBoard.appendChild(tray);
-  boardEl.replaceChildren(yarnBoard);
+  boardEl.replaceChildren(yarnCanvas);
   boardEl.style.transform = "";
+  nextFrame(() => drawYarnScene(yarnCanvas));
   updateHud();
 }
 
