@@ -6,9 +6,14 @@ const DIRECTIONS = {
 };
 
 const COLORS = ["#8b5cf6", "#f5b83d", "#3f83f8", "#f97316", "#22c55e", "#ec4899", "#14b8a6"];
+const YARN_COLORS = ["#ff7a59", "#ffd166", "#5eead4", "#60a5fa", "#c084fc", "#f472b6", "#34d399", "#fb923c"];
 const SHAPES = ["maze"];
 const SVG_NS = "http://www.w3.org/2000/svg";
 const STORAGE_KEY = "arrow-glide-level";
+const YARN_STORAGE_KEY = "arrow-glide-yarn-level";
+const MODE_STORAGE_KEY = "arrow-glide-mode";
+const MODE_ARROWS = "arrows";
+const MODE_YARN = "yarn";
 
 const boardEl = document.querySelector("#board");
 const boardFrameEl = document.querySelector(".board-frame");
@@ -18,12 +23,16 @@ const clearedTextEl = document.querySelector("#clearedText");
 const prevLevelBtn = document.querySelector("#prevLevel");
 const nextLevelBtn = document.querySelector("#nextLevel");
 const topNextLevelBtn = document.querySelector("#topNextLevel");
+const arrowModeBtn = document.querySelector("#arrowMode");
+const yarnModeBtn = document.querySelector("#yarnMode");
 const undoBtn = document.querySelector("#undoBtn");
 
 const state = {
+  mode: MODE_ARROWS,
   level: 1,
   size: 10,
   arrows: [],
+  yarn: null,
   history: [],
   isAnimating: false,
   activeAnimations: 0,
@@ -653,36 +662,201 @@ function generateLevel(levelNumber) {
   return { size: fallback.size, arrows: fallback.arrows };
 }
 
-function readSavedLevel() {
+function storageKeyForMode(mode) {
+  return mode === MODE_YARN ? YARN_STORAGE_KEY : STORAGE_KEY;
+}
+
+function readSavedMode() {
   try {
-    const saved = Number(window.localStorage.getItem(STORAGE_KEY));
+    return window.localStorage.getItem(MODE_STORAGE_KEY) === MODE_YARN ? MODE_YARN : MODE_ARROWS;
+  } catch {
+    return MODE_ARROWS;
+  }
+}
+
+function saveMode(mode) {
+  try {
+    window.localStorage.setItem(MODE_STORAGE_KEY, mode);
+  } catch {
+    // Storage can be unavailable in private browsing; the game still works.
+  }
+}
+
+function readSavedLevel(mode = state.mode) {
+  try {
+    const saved = Number(window.localStorage.getItem(storageKeyForMode(mode)));
     return Number.isFinite(saved) ? Math.max(1, Math.floor(saved)) : 1;
   } catch {
     return 1;
   }
 }
 
-function saveLevelProgress(levelNumber) {
+function saveLevelProgress(levelNumber, mode = state.mode) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, String(levelNumber));
+    window.localStorage.setItem(storageKeyForMode(mode), String(levelNumber));
   } catch {
     // Storage can be unavailable in private browsing; the game still works.
   }
 }
 
 function loadLevel(levelNumber) {
+  if (state.mode === MODE_YARN) {
+    loadYarnLevel(levelNumber);
+    return;
+  }
+  loadArrowLevel(levelNumber);
+}
+
+function loadArrowLevel(levelNumber) {
   const nextLevel = Math.max(1, Math.floor(Number(levelNumber) || 1));
   const level = generateLevel(nextLevel);
+  state.mode = MODE_ARROWS;
   state.runId += 1;
   state.level = nextLevel;
   state.size = level.size;
   state.arrows = level.arrows;
+  state.yarn = null;
   state.history = [];
   state.isAnimating = false;
   state.activeAnimations = 0;
   state.completed = false;
-  saveLevelProgress(nextLevel);
+  saveMode(MODE_ARROWS);
+  saveLevelProgress(nextLevel, MODE_ARROWS);
   resetView();
+  render();
+}
+
+function cloneTubes(tubes) {
+  return tubes.map((tube) => [...tube]);
+}
+
+function topYarnRun(tube) {
+  if (!tube.length) return { color: null, count: 0 };
+  const color = tube[tube.length - 1];
+  let count = 1;
+  for (let index = tube.length - 2; index >= 0; index -= 1) {
+    if (tube[index] !== color) break;
+    count += 1;
+  }
+  return { color, count };
+}
+
+function isYarnLevelComplete(yarn) {
+  return yarn.tubes.every((tube) => (
+    tube.length === 0
+    || (tube.length === yarn.capacity && tube.every((color) => color === tube[0]))
+  ));
+}
+
+function buildYarnLevel(levelNumber) {
+  const rng = createRng(42533 + levelNumber * 977);
+  const capacity = 4;
+  const colorCount = Math.min(7, 4 + Math.floor((levelNumber - 1) / 5));
+  const tubeCount = colorCount + 2;
+  const colors = YARN_COLORS.slice(0, colorCount);
+  const yarns = [];
+
+  colors.forEach((color) => {
+    for (let count = 0; count < capacity; count += 1) yarns.push(color);
+  });
+
+  shuffle(yarns, rng).forEach((color, index) => {
+    yarns[index] = color;
+  });
+
+  const mixed = shuffle(yarns, rng);
+  const tubes = Array.from({ length: tubeCount }, () => []);
+  mixed.forEach((color, index) => {
+    tubes[index % colorCount].push(color);
+  });
+
+  return {
+    capacity,
+    colors,
+    tubes,
+    selectedTube: null
+  };
+}
+
+function loadYarnLevel(levelNumber) {
+  const nextLevel = Math.max(1, Math.floor(Number(levelNumber) || 1));
+  state.mode = MODE_YARN;
+  state.runId += 1;
+  state.level = nextLevel;
+  state.arrows = [];
+  state.yarn = buildYarnLevel(nextLevel);
+  state.history = [];
+  state.isAnimating = false;
+  state.activeAnimations = 0;
+  state.completed = isYarnLevelComplete(state.yarn);
+  saveMode(MODE_YARN);
+  saveLevelProgress(nextLevel, MODE_YARN);
+  resetView();
+  render();
+}
+
+function switchMode(mode) {
+  if (mode === state.mode) return;
+  state.mode = mode;
+  saveMode(mode);
+  loadLevel(readSavedLevel(mode));
+}
+
+function recordYarnHistory() {
+  state.history.push({
+    tubes: cloneTubes(state.yarn.tubes),
+    selectedTube: state.yarn.selectedTube
+  });
+}
+
+function moveYarnGroup(fromIndex, toIndex) {
+  const fromTube = state.yarn.tubes[fromIndex];
+  const toTube = state.yarn.tubes[toIndex];
+  if (!fromTube.length || fromIndex === toIndex) return false;
+
+  const run = topYarnRun(fromTube);
+  const openSlots = state.yarn.capacity - toTube.length;
+  if (openSlots < run.count) return false;
+
+  recordYarnHistory();
+  const moving = fromTube.splice(fromTube.length - run.count, run.count);
+  state.yarn.tubes[toIndex].push(...moving);
+  state.yarn.selectedTube = null;
+  state.completed = isYarnLevelComplete(state.yarn);
+  render();
+  return true;
+}
+
+function onYarnTubeTap(index) {
+  if (state.completed || !state.yarn) return;
+  const selected = state.yarn.selectedTube;
+
+  if (selected === null) {
+    if (state.yarn.tubes[index].length) {
+      state.yarn.selectedTube = index;
+      render();
+    }
+    return;
+  }
+
+  if (selected === index) {
+    state.yarn.selectedTube = null;
+    render();
+    return;
+  }
+
+  if (!moveYarnGroup(selected, index)) {
+    state.yarn.selectedTube = state.yarn.tubes[index].length ? index : null;
+    render();
+  }
+}
+
+function undoYarn() {
+  const snapshot = state.history.pop();
+  if (!snapshot || !state.yarn) return;
+  state.yarn.tubes = cloneTubes(snapshot.tubes);
+  state.yarn.selectedTube = snapshot.selectedTube;
+  state.completed = isYarnLevelComplete(state.yarn);
   render();
 }
 
@@ -757,15 +931,22 @@ function recordHistory() {
 }
 
 function updateHud() {
-  const total = state.arrows.length;
-  const cleared = state.arrows.filter((arrow) => arrow.removed || arrow.exiting).length;
-  levelLabelEl.textContent = `LEVEL ${state.level}`;
+  const isYarn = state.mode === MODE_YARN;
+  const total = isYarn ? state.yarn.colors.length : state.arrows.length;
+  const cleared = isYarn
+    ? state.yarn.tubes.filter((tube) => (
+      tube.length === state.yarn.capacity && tube.every((color) => color === tube[0])
+    )).length
+    : state.arrows.filter((arrow) => arrow.removed || arrow.exiting).length;
+  levelLabelEl.textContent = `${isYarn ? "YARN" : "LEVEL"} ${state.level}`;
   clearedTextEl.textContent = `${cleared}/${total}`;
   statusOverlayEl.hidden = !state.completed;
   prevLevelBtn.disabled = state.level <= 1;
   nextLevelBtn.disabled = false;
   topNextLevelBtn.disabled = false;
   undoBtn.disabled = !state.history.length || state.isAnimating;
+  arrowModeBtn.classList.toggle("active", !isYarn);
+  yarnModeBtn.classList.toggle("active", isYarn);
 }
 
 function beginArrowAnimation(arrow) {
@@ -976,7 +1157,7 @@ function animatePathBetween(arrow, fromPath, toPath, duration, onDone) {
   nextFrame(step);
 }
 
-function undo() {
+function undoArrows() {
   const snapshot = state.history.pop();
   if (!snapshot || state.isAnimating) return;
   state.arrows = snapshot.arrows.map((arrow) => ({
@@ -988,6 +1169,14 @@ function undo() {
     headEl: null
   }));
   render();
+}
+
+function undo() {
+  if (state.mode === MODE_YARN) {
+    undoYarn();
+    return;
+  }
+  undoArrows();
 }
 
 function resetView() {
@@ -1101,7 +1290,56 @@ function renderArrow(svg, arrow) {
   svg.appendChild(group);
 }
 
-function render() {
+function renderYarn() {
+  boardFrameEl.classList.add("yarn-mode");
+  boardFrameEl.style.removeProperty("--dot-step");
+
+  const yarnBoard = document.createElement("div");
+  yarnBoard.className = "yarn-board";
+
+  const targets = document.createElement("div");
+  targets.className = "yarn-targets";
+  state.yarn.colors.forEach((color) => {
+    const target = document.createElement("div");
+    target.className = "yarn-target";
+    target.style.background = color;
+    targets.appendChild(target);
+  });
+
+  const tubes = document.createElement("div");
+  tubes.className = "yarn-tubes";
+  tubes.style.setProperty("--tube-count", state.yarn.tubes.length);
+
+  state.yarn.tubes.forEach((tube, tubeIndex) => {
+    const tubeEl = document.createElement("button");
+    tubeEl.className = `yarn-tube${state.yarn.selectedTube === tubeIndex ? " selected" : ""}`;
+    tubeEl.type = "button";
+    tubeEl.setAttribute("aria-label", `Yarn stack ${tubeIndex + 1}`);
+    tubeEl.addEventListener("click", () => onYarnTubeTap(tubeIndex));
+
+    for (let slot = state.yarn.capacity - 1; slot >= 0; slot -= 1) {
+      const color = tube[slot];
+      const piece = document.createElement("div");
+      if (color) {
+        piece.className = "yarn-ball";
+        piece.style.setProperty("--yarn-color", color);
+      } else {
+        piece.className = "yarn-slot";
+      }
+      tubeEl.appendChild(piece);
+    }
+
+    tubes.appendChild(tubeEl);
+  });
+
+  yarnBoard.appendChild(targets);
+  yarnBoard.appendChild(tubes);
+  boardEl.replaceChildren(yarnBoard);
+  boardEl.style.transform = "";
+  updateHud();
+}
+
+function renderArrows() {
   const total = state.arrows.length;
   const cleared = state.arrows.filter((arrow) => arrow.removed).length;
   const dotStep = `${100 / state.size}%`;
@@ -1113,6 +1351,7 @@ function render() {
     "aria-label": `Level ${state.level} arrow puzzle`
   });
 
+  boardFrameEl.classList.remove("yarn-mode");
   renderDefs(svg);
   state.arrows.filter((arrow) => !arrow.removed).forEach((arrow) => renderArrow(svg, arrow));
 
@@ -1122,12 +1361,23 @@ function render() {
   updateHud();
 }
 
+function render() {
+  if (state.mode === MODE_YARN) {
+    renderYarn();
+    return;
+  }
+  renderArrows();
+}
+
 prevLevelBtn.addEventListener("click", () => loadLevel(Math.max(1, state.level - 1)));
 nextLevelBtn.addEventListener("click", () => loadLevel(state.level + 1));
 topNextLevelBtn.addEventListener("click", () => loadLevel(state.level + 1));
+arrowModeBtn.addEventListener("click", () => switchMode(MODE_ARROWS));
+yarnModeBtn.addEventListener("click", () => switchMode(MODE_YARN));
 undoBtn.addEventListener("click", undo);
 
 boardFrameEl.addEventListener("wheel", (event) => {
+  if (state.mode !== MODE_ARROWS) return;
   event.preventDefault();
   const factor = event.deltaY < 0 ? 1.14 : 0.88;
   zoomAt(event.clientX, event.clientY, state.view.scale * factor);
@@ -1153,6 +1403,7 @@ document.addEventListener("dblclick", (event) => {
 }, { passive: false, capture: true });
 
 boardFrameEl.addEventListener("pointerdown", (event) => {
+  if (state.mode !== MODE_ARROWS) return;
   if (event.button !== undefined && event.button !== 0) return;
   state.view.pointers.set(event.pointerId, {
     clientX: event.clientX,
@@ -1171,6 +1422,7 @@ boardFrameEl.addEventListener("pointerdown", (event) => {
 });
 
 boardFrameEl.addEventListener("pointermove", (event) => {
+  if (state.mode !== MODE_ARROWS) return;
   if (!state.view.pointers.has(event.pointerId)) return;
   const previous = state.view.pointers.get(event.pointerId);
   state.view.pointers.set(event.pointerId, {
@@ -1209,6 +1461,7 @@ boardFrameEl.addEventListener("pointermove", (event) => {
 });
 
 function releaseBoardPointer(event) {
+  if (state.mode !== MODE_ARROWS) return;
   if (state.view.dragged) {
     state.view.suppressClickUntil = performance.now() + 220;
   }
@@ -1227,4 +1480,5 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-loadLevel(readSavedLevel());
+state.mode = readSavedMode();
+loadLevel(readSavedLevel(state.mode));

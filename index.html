@@ -9,14 +9,20 @@
   <body>
     <main class="app-shell">
       <section class="game" aria-label="Arrow Glide game">
-        <header class="topbar">
-          <button class="icon-button" id="prevLevel" type="button" title="Previous level" aria-label="Previous level">
-            <span aria-hidden="true">&#8592;</span>
-          </button>
-          <div class="level-pill" id="levelLabel">LEVEL 1</div>
-          <button class="icon-button" id="topNextLevel" type="button" title="Next level" aria-label="Next level">
-            <span aria-hidden="true">&#8594;</span>
-          </button>
+        <header class="app-header">
+          <div class="topbar">
+            <button class="icon-button" id="prevLevel" type="button" title="Previous level" aria-label="Previous level">
+              <span aria-hidden="true">&#8592;</span>
+            </button>
+            <div class="level-pill" id="levelLabel">LEVEL 1</div>
+            <button class="icon-button" id="topNextLevel" type="button" title="Next level" aria-label="Next level">
+              <span aria-hidden="true">&#8594;</span>
+            </button>
+          </div>
+          <div class="mode-switch" aria-label="Game mode">
+            <button id="arrowMode" type="button">Arrows</button>
+            <button id="yarnMode" type="button">Yarn</button>
+          </div>
         </header>
 
         <section class="board-frame" aria-label="Puzzle board">
