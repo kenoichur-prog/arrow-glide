@@ -158,8 +158,8 @@ button:disabled {
 
 .board-frame.yarn-mode {
   background:
-    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.55), transparent 17%),
-    linear-gradient(145deg, #bfe8ff 0%, #d6ccff 46%, #ffe5ba 100%);
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.35), transparent 16%),
+    linear-gradient(145deg, #d8edff 0%, #eadcff 48%, #ffe7bd 100%);
 }
 
 .board {
@@ -225,51 +225,58 @@ button:disabled {
   inset: 0;
   display: grid;
   grid-template-rows: 1fr auto;
-  gap: clamp(10px, 2vw, 18px);
-  padding: clamp(14px, 3vw, 28px);
+  gap: clamp(8px, 1.8vw, 16px);
+  padding: clamp(12px, 2.6vw, 24px);
   color: #27324a;
 }
 
 .wool-canvas {
+  position: relative;
   align-self: stretch;
   justify-self: center;
-  width: min(100%, 520px);
+  width: min(100%, 560px);
   display: grid;
   grid-template-columns: repeat(var(--wool-cols), 1fr);
   grid-template-rows: repeat(var(--wool-rows), 1fr);
-  gap: 3px;
-  padding: clamp(10px, 2vw, 16px);
+  gap: 2px;
+  padding: clamp(10px, 1.8vw, 15px);
   border-radius: 22px;
   background:
-    repeating-linear-gradient(0deg, rgba(105, 126, 165, 0.08) 0 3px, transparent 3px 8px),
-    repeating-linear-gradient(90deg, rgba(105, 126, 165, 0.08) 0 3px, transparent 3px 8px),
-    rgba(255, 255, 255, 0.74);
+    repeating-linear-gradient(0deg, rgba(121, 103, 82, 0.08) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(90deg, rgba(121, 103, 82, 0.06) 0 2px, transparent 2px 7px),
+    #fff7e8;
   box-shadow:
-    inset 0 0 0 3px rgba(255, 255, 255, 0.7),
+    inset 0 0 0 3px rgba(255, 255, 255, 0.72),
+    inset 0 -18px 34px rgba(119, 84, 48, 0.08),
     0 12px 26px rgba(58, 73, 110, 0.18);
 }
 
 .wool-stitch {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   min-height: 0;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px 8px 10px 10px;
   background:
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.23) 0 2px, rgba(0, 0, 0, 0.1) 2px 4px),
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.34), transparent 30%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.18) 0 2px, rgba(0, 0, 0, 0.12) 2px 4px),
     var(--yarn-color);
   box-shadow:
-    inset -2px -2px 4px rgba(0, 0, 0, 0.16),
-    inset 2px 2px 4px rgba(255, 255, 255, 0.22);
+    inset -1px -2px 3px rgba(0, 0, 0, 0.2),
+    inset 1px 2px 3px rgba(255, 255, 255, 0.24),
+    0 1px 1px rgba(57, 47, 35, 0.18);
+  transform: translateZ(0);
 }
 
 .wool-stitch.empty {
-  background: rgba(255, 255, 255, 0.26);
-  box-shadow: inset 0 0 0 1px rgba(89, 105, 145, 0.08);
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(89, 105, 145, 0.05);
 }
 
 .wool-stitch.active {
-  transform: translateY(-2px);
-  outline: 2px solid rgba(255, 255, 255, 0.95);
+  outline: 2px solid rgba(39, 50, 74, 0.28);
+  outline-offset: 1px;
 }
 
 .spool-tray {
@@ -277,6 +284,10 @@ button:disabled {
   grid-template-columns: repeat(var(--spool-count), minmax(0, 1fr));
   gap: clamp(7px, 1.5vw, 13px);
   align-items: center;
+  padding: 8px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.32);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36);
 }
 
 .spool {
@@ -285,19 +296,19 @@ button:disabled {
   display: grid;
   gap: 5px;
   justify-items: center;
-  padding: 7px 4px 6px;
+  padding: 8px 5px 6px;
   border: 0;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.5);
   box-shadow: 0 8px 16px rgba(58, 73, 110, 0.14);
 }
 
 .spool-roll {
   width: min(100%, 70px);
-  height: 30px;
+  height: 34px;
   border-radius: 999px;
   background:
-    linear-gradient(90deg, #ffe8bd 0 12%, transparent 12% 88%, #ffe8bd 88%),
+    linear-gradient(90deg, #f2dfbb 0 13%, transparent 13% 87%, #f2dfbb 87%),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 4px, rgba(0, 0, 0, 0.12) 4px 8px),
     var(--yarn-color);
   box-shadow:
@@ -321,7 +332,7 @@ button:disabled {
 
 .spool.empty .spool-roll {
   background:
-    linear-gradient(90deg, #ffe8bd 0 12%, transparent 12% 88%, #ffe8bd 88%),
+    linear-gradient(90deg, #f2dfbb 0 13%, transparent 13% 87%, #f2dfbb 87%),
     rgba(255, 255, 255, 0.34);
 }
 
