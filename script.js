@@ -730,21 +730,93 @@ function isYarnLevelComplete(yarn) {
   return yarn.cells.every((color) => !color);
 }
 
+function yarnShapeColor(row, col, rows, cols, colors, pattern) {
+  const x = ((col + 0.5) / cols - 0.5) * 2;
+  const y = ((row + 0.5) / rows - 0.5) * 2;
+  const band = Math.abs(Math.floor((row * 1.35 + col * 0.28) / 2)) % colors.length;
+
+  if (pattern === 0) {
+    const hx = x * 1.08;
+    const hy = -y * 1.22 + 0.2;
+    const heart = Math.pow(hx * hx + hy * hy - 0.56, 3) - hx * hx * Math.pow(hy, 3) <= 0;
+    if (!heart) return null;
+    const rim = Math.abs(hx) + Math.abs(y + 0.02) > 0.84 || hy > 0.84;
+    return colors[(rim ? band + 1 : band + 3) % colors.length];
+  }
+
+  if (pattern === 1) {
+    const leftWing = Math.pow((x + 0.38) / 0.48, 2) + Math.pow((y + 0.1) / 0.76, 2) <= 1;
+    const rightWing = Math.pow((x - 0.38) / 0.48, 2) + Math.pow((y + 0.1) / 0.76, 2) <= 1;
+    const body = Math.abs(x) < 0.1 && y > -0.72 && y < 0.72;
+    const antenna = y < -0.62 && (Math.abs(x - (y + 0.62) * 0.5) < 0.08 || Math.abs(x + (y + 0.62) * 0.5) < 0.08);
+    if (!leftWing && !rightWing && !body && !antenna) return null;
+    return colors[(body ? 1 : band + (x > 0 ? 2 : 0)) % colors.length];
+  }
+
+  if (pattern === 2) {
+    const head = x * x / 0.62 + Math.pow(y + 0.03, 2) / 0.52 <= 1;
+    const leftEar = y < -0.5 && x < -0.18 && Math.abs(x + 0.46) + Math.abs(y + 0.58) < 0.28;
+    const rightEar = y < -0.5 && x > 0.18 && Math.abs(x - 0.46) + Math.abs(y + 0.58) < 0.28;
+    const cheeks = Math.abs(x) < 0.7 && y > 0.05 && y < 0.42;
+    if (!head && !leftEar && !rightEar && !cheeks) return null;
+    return colors[(Math.floor((col + row * 0.55) / 3) + (y > 0.08 ? 2 : 0)) % colors.length];
+  }
+
+  if (pattern === 3) {
+    const distance = Math.hypot(x, y);
+    const angle = Math.atan2(y, x);
+    const petals = distance < 0.82 && distance > 0.2 && Math.cos(angle * 6) > 0.08;
+    const center = distance < 0.27;
+    const stem = Math.abs(x) < 0.1 && y > 0.08 && y < 0.9;
+    const leaf = y > 0.3 && Math.pow((x + 0.32) / 0.32, 2) + Math.pow((y - 0.46) / 0.18, 2) <= 1;
+    if (!petals && !center && !stem && !leaf) return null;
+    if (center) return colors[1 % colors.length];
+    if (stem || leaf) return colors[(colors.length - 2 + band) % colors.length];
+    return colors[(band + 3) % colors.length];
+  }
+
+  const sweater = Math.abs(x) < 0.58 && Math.abs(y) < 0.74;
+  const leftSleeve = x < -0.44 && x > -0.92 && y > -0.42 && y < 0.24;
+  const rightSleeve = x > 0.44 && x < 0.92 && y > -0.42 && y < 0.24;
+  const neck = Math.abs(x) < 0.22 && y < -0.54;
+  if ((!sweater && !leftSleeve && !rightSleeve) || neck) return null;
+  return colors[(Math.floor((row + 1) / 2) + (leftSleeve || rightSleeve ? 2 : 0)) % colors.length];
+}
+
 function buildYarnLevel(levelNumber) {
   const rng = createRng(42533 + levelNumber * 977);
-  const rows = 1;
-  const cols = 1;
+  const rows = 18;
+  const cols = 18;
   const colorCount = Math.min(7, 4 + Math.floor((levelNumber - 1) / 5));
   const colors = YARN_COLORS.slice(0, colorCount);
-  const pieceCount = 28 + Math.min(18, Math.floor(levelNumber / 2));
-  const cells = [];
+  const cells = Array.from({ length: rows * cols }, () => null);
   const targets = new Map(colors.map((color) => [color, 0]));
+  const pattern = (levelNumber - 1) % 5;
 
-  for (let index = 0; index < pieceCount; index += 1) {
-    const color = colors[Math.floor((index * 1.7 + rng() * colors.length) % colors.length)];
-    cells.push(color);
+  function setCell(row, col, color) {
+    if (row < 0 || row >= rows || col < 0 || col >= cols) return;
+    const index = row * cols + col;
+    if (cells[index] || !color) return;
+    cells[index] = color;
     targets.set(color, targets.get(color) + 1);
   }
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      setCell(row, col, yarnShapeColor(row, col, rows, cols, colors, pattern));
+    }
+  }
+
+  colors.forEach((color, colorIndex) => {
+    const minimum = 12 + colorIndex * 2;
+    let guard = 0;
+    while (targets.get(color) < minimum && guard < 240) {
+      guard += 1;
+      const row = 2 + Math.floor(rng() * (rows - 4));
+      const col = 2 + Math.floor(rng() * (cols - 4));
+      setCell(row, col, color);
+    }
+  });
 
   return {
     rows,
@@ -754,55 +826,6 @@ function buildYarnLevel(levelNumber) {
     targets: Object.fromEntries(targets),
     collected: Object.fromEntries(colors.map((color) => [color, 0])),
     activeColor: null
-  };
-}
-
-function yarnPieceLayout(position, count, levelNumber) {
-  const motif = (levelNumber - 1) % 4;
-  const golden = position * 2.39996323;
-  const spread = Math.sqrt((position + 0.5) / Math.max(1, count));
-
-  if (motif === 0) {
-    const isTrunk = position > count * 0.68;
-    return {
-      x: isTrunk ? 44 + ((position % 5) - 2) * 3.4 : 50 + Math.cos(golden) * spread * 38,
-      y: isTrunk ? 58 + ((position - Math.floor(count * 0.68)) % 10) * 3.5 : 42 + Math.sin(golden) * spread * 28,
-      size: isTrunk ? 17 : 20 + (position % 4) * 2,
-      tilt: (position % 7 - 3) * 8
-    };
-  }
-
-  if (motif === 1) {
-    const petal = position % 10;
-    const angle = (petal / 10) * Math.PI * 2;
-    const ring = 23 + Math.floor(position / 10) * 5;
-    return {
-      x: 50 + Math.cos(angle) * ring,
-      y: 50 + Math.sin(angle) * ring * 0.78,
-      size: position % 10 === 0 ? 25 : 18 + (position % 3) * 2,
-      tilt: angle * 57
-    };
-  }
-
-  if (motif === 2) {
-    const row = Math.floor(position / 6);
-    const col = position % 6;
-    const width = Math.max(2, 6 - Math.floor(row / 2));
-    return {
-      x: 50 + (col - width / 2) * 9 + (row % 2) * 4,
-      y: 22 + row * 7,
-      size: 18 + (row % 3) * 2,
-      tilt: (col - 2) * 8
-    };
-  }
-
-  const row = Math.floor(position / 8);
-  const col = position % 8;
-  return {
-    x: 22 + col * 8 + Math.sin(row + col) * 3,
-    y: 25 + row * 7.5,
-    size: 17 + ((row + col) % 4) * 2,
-    tilt: ((row * 3 + col) % 9 - 4) * 7
   };
 }
 
@@ -842,8 +865,27 @@ function collectWoolGroup(index) {
   const color = state.yarn.cells[index];
   if (!color) return false;
   recordYarnHistory();
-  state.yarn.cells[index] = null;
-  state.yarn.collected[color] += 1;
+  const stack = [index];
+  const visited = new Set();
+  let collected = 0;
+
+  while (stack.length) {
+    const current = stack.pop();
+    if (visited.has(current) || state.yarn.cells[current] !== color) continue;
+    visited.add(current);
+    state.yarn.cells[current] = null;
+    collected += 1;
+    const row = Math.floor(current / state.yarn.cols);
+    const col = current % state.yarn.cols;
+    Object.values(DIRECTIONS).forEach((dir) => {
+      const nextRow = row + dir.dr;
+      const nextCol = col + dir.dc;
+      if (!isInside(nextRow, nextCol, state.yarn.rows) || nextCol >= state.yarn.cols) return;
+      stack.push(nextRow * state.yarn.cols + nextCol);
+    });
+  }
+
+  state.yarn.collected[color] += collected;
   state.yarn.activeColor = color;
   state.completed = isYarnLevelComplete(state.yarn);
   render();
@@ -1300,67 +1342,51 @@ function renderYarn() {
   const yarnBoard = document.createElement("div");
   yarnBoard.className = "yarn-board";
 
-  const boxes = document.createElement("div");
-  boxes.className = "yarn-boxes";
-  boxes.style.setProperty("--spool-count", state.yarn.colors.length);
+  const canvas = document.createElement("div");
+  canvas.className = "wool-canvas";
+  canvas.style.setProperty("--wool-rows", state.yarn.rows);
+  canvas.style.setProperty("--wool-cols", state.yarn.cols);
+
+  state.yarn.cells.forEach((color, index) => {
+    const stitch = document.createElement("button");
+    stitch.type = "button";
+    stitch.className = `wool-stitch${color ? "" : " empty"}${color === state.yarn.activeColor ? " active" : ""}`;
+    stitch.setAttribute("aria-label", color ? "Collect yarn" : "Empty wool space");
+    if (color) {
+      stitch.style.setProperty("--yarn-color", color);
+      stitch.addEventListener("pointerup", (event) => {
+        event.preventDefault();
+        onWoolCellTap(index);
+      });
+    }
+    canvas.appendChild(stitch);
+  });
+
+  const tray = document.createElement("div");
+  tray.className = "spool-tray";
+  tray.style.setProperty("--spool-count", state.yarn.colors.length);
 
   state.yarn.colors.forEach((color) => {
-    const box = document.createElement("div");
+    const spool = document.createElement("div");
     const collected = state.yarn.collected[color];
     const target = state.yarn.targets[color] || 1;
-    box.className = `yarn-box${collected >= target ? " complete" : ""}`;
-    box.style.setProperty("--yarn-color", color);
+    spool.className = `spool${collected >= target ? " complete" : ""}${collected === 0 ? " empty" : ""}`;
 
-    for (let slotIndex = 0; slotIndex < 4; slotIndex += 1) {
-      const slot = document.createElement("div");
-      slot.className = `yarn-slot${collected / target > slotIndex / 4 ? " filled" : ""}`;
-      box.appendChild(slot);
-    }
+    const roll = document.createElement("div");
+    roll.className = "spool-roll";
+    roll.style.setProperty("--yarn-color", color);
 
-    const count = document.createElement("strong");
+    const count = document.createElement("div");
+    count.className = "spool-count";
     count.textContent = `${collected}/${target}`;
-    box.appendChild(count);
 
-    boxes.appendChild(box);
+    spool.appendChild(roll);
+    spool.appendChild(count);
+    tray.appendChild(spool);
   });
 
-  const object = document.createElement("div");
-  object.className = "yarn-object";
-
-  const visiblePieces = state.yarn.cells
-    .map((color, index) => ({ color, index }))
-    .filter((piece) => piece.color);
-
-  visiblePieces.forEach((piece, position) => {
-    const layout = yarnPieceLayout(position, visiblePieces.length, state.level);
-    const { color, index } = piece;
-    if (!color) return;
-    const strand = document.createElement("button");
-    strand.type = "button";
-    strand.className = `yarn-piece${color === state.yarn.activeColor ? " active" : ""}`;
-    strand.style.setProperty("--yarn-color", color);
-    strand.style.setProperty("--piece-x", `${layout.x}%`);
-    strand.style.setProperty("--piece-y", `${layout.y}%`);
-    strand.style.setProperty("--piece-size", `${layout.size}%`);
-    strand.style.setProperty("--piece-tilt", `${layout.tilt}deg`);
-    strand.style.zIndex = String(10 + position);
-    strand.setAttribute("aria-label", "Sort yarn ball");
-    strand.addEventListener("pointerup", (event) => {
-      event.preventDefault();
-      onWoolCellTap(index);
-    });
-    object.appendChild(strand);
-  });
-
-  const slotRail = document.createElement("div");
-  slotRail.className = "empty-slot-rail";
-  for (let slotIndex = 0; slotIndex < 5; slotIndex += 1) {
-    slotRail.appendChild(document.createElement("span"));
-  }
-
-  yarnBoard.appendChild(boxes);
-  yarnBoard.appendChild(object);
-  yarnBoard.appendChild(slotRail);
+  yarnBoard.appendChild(canvas);
+  yarnBoard.appendChild(tray);
   boardEl.replaceChildren(yarnBoard);
   boardEl.style.transform = "";
   updateHud();
